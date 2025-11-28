@@ -5,7 +5,7 @@ Q1
 * UK Parliament Commons Library Briefing (2024) 总结英格兰/伦敦 STR 监管，指出 90 天限制与实际市场规模冲突，并用 InsideAirbnb 做违规讨论。Research Briefings
 
 2 空间分布/聚集+规模
-2.1STR density（短租密度高）
+2.1 STR density（短租密度高）
 * Shabrina et al. (2022/2021) 在 Greater London 计算 STR 的规模与空间分布，讨论密度水平与住房压力/违规。SAGE Journals+1
 * Gyódi (2024) 比较伦敦等城市 Airbnb 空间特征并强调供给密度与旅游/市中心集中。Taylor & Francis Online
 
@@ -14,7 +14,7 @@ Q1
 * Wachsmuth & Weisler (2018) 提出 STR 系统性但空间不均匀的聚集（clusters），是政策风险来源。ResearchGate
 * Wang & Hincks (2024) 伦敦疫情期 STR 收入与房源在空间上的聚集/溢出（方法你们可借鉴做热点图）。White Rose Research Online
 
-2.3STR vs residential conflict（与传统居住区冲突）
+2.3 STR vs residential conflict（与传统居住区冲突）
 * InsideAirbnb London 页面 直指：在住宅区的 STR（尤其 entire-home、商业化房源）会像酒店一样扰民、拿走住房、可能违法。insideairbnb.com
 * Rozena & Quinton (2023) 伦敦 Airbnbification 生活经验研究，讨论住宅楼/社区被转化为“非正式酒店”的冲突。Taylor & Francis Online+1
 
@@ -47,16 +47,19 @@ Substitution incentive（STR 收益 >> LTR 收益 的替代效应）
 
 
 Q2：listing（3个条件）+天数=数量
-   专业房东数量/爱彼迎整体房东=占比 我们将用以下阈值对宿主进行分类：
+    专业房东数量/爱彼迎整体房东=占比 我们将用以下阈值对宿主进行分类：
 • Hosts with ≥ 2 listings拥有≥2个列表的主持人
 • Hosts with ≥ 3 listings of any type拥有3个任何类型的≥房东列表
 • Hosts with ≥ 2 entire homes房东≥两个完整的房子
 
 
-Q3：专业房东的房子 数量1
-        专业房东的房子/爱彼迎房子=占比1
-        空间聚集-map
-Q4：
+Q3：
+Q3.1 专业房东的房子 数量1
+Q3.2 专业房东的房子/爱彼迎房子=占比1
+Q3.2 空间聚集-map
+
+Q4：利弊
+
 
 Q1:是否“失控"
 如果你发现 listing 高密度 →说明提案有必要如果你发现其实规模不大 →说明反对派在夸大
