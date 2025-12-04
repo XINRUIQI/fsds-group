@@ -1,7 +1,7 @@
 #Q1 data source,literature,method,code
 行6-45    政策
-行47-106  商业
-行109-169 空间
+行47-107  商业
+行110-170 空间
 
 #Part1:    政策90天 
 反对党提议：“professional landlords 必须登记并多缴 Council Tax”，他们指控 Airbnb “out of control”，市长想知道是否真的“失控”，以及 “90 天规定是否被大规模违反”。 
@@ -97,6 +97,7 @@ x: borough median rent； y: median monthly STR equivalent
 揭示：收益差驱动替代效应（substitution incentive）
 
 解释但没代码部分：
+0.Bivens (2019) – Economic Costs and Benefits of Airbnb
 1.租金：Rent inflation（租金上涨机制）
 （文献支持 → 用于解释 为什么商业化是个问题）
 STR 把住房 stock 从 LTR 抽走；减少可负担住房；推高租金 / 房价；造成 displacement, gentrification
@@ -130,6 +131,7 @@ Wang & Hincks (2024)：伦敦 STR 收入呈空间溢出（spillover）
 数据处理：Top-N concentration in X areas
 3.Residential conflict（居住区冲突）&Housing displacement（挤出效应）
 是否大量 entire-home / commercial STR 位于本应长期居住的区？  是否造成居民迁出与 LTR displacement？（文献支持） 这些热点是否与 housing pressure 区重合？
+老师给的文献：Travers, Sims & Bosetti (2016) – Housing & Inequality in London
 InsideAirbnb（London）：STR 侵入住宅区 → 像“informal hotels”
 Rozena & Quinton (2023)：居民感受到 Airbnb “改变社区性质”
 Gil (2023)：STR 抽走长期住房
