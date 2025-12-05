@@ -3,3 +3,5 @@
 .ipynb_checkpoints/harvard-cite-them-right-checkpoint.csl
 .ipynb_checkpoints/bio-checkpoint.bib
 .ipynb_checkpoints/Readings-checkpoint.bib
+/.ipynb_checkpoints
+.DS_Store
