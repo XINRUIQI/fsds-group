@@ -134,3 +134,14 @@ ax.set_xlim([0,500]);
 {{< include _questions.qmd >}}
 
 ## References
+###policy
+London’s 90-day rule is the key legal benchmark for assessing whether Airbnb is “out of control.” Under the Deregulation Act 2015, a dwelling may be short-let for up to 90 nights per calendar year without planning permission; exceeding this threshold constitutes a material change of use and is therefore unlawful. The rule aims to prevent the commercialisation of entire homes and protect long-term housing supply. Using the calendar and listings datasets in Jupyter, we calculated occupied_nights for entire homes to assess compliance. Three patterns indicate regulatory failure:
+
+Figure 1 – Occupied nights: Many entire homes exceed the 90-night legal limit, showing widespread violation.
+
+Figure 2 – Borough violation rates: Multiple boroughs record 70–85% non-compliance, indicating structural enforcement gaps.
+
+Figure 3 – Commercial STR correlation: Areas with more commercial STRs show higher violation rates, suggesting professional landlords drive much of the unlawful activity.
+
+Together, these findings show that the 90-day rule is routinely breached in practice, and that London’s Airbnb market has expanded beyond effective regulatory control.
+###ending
