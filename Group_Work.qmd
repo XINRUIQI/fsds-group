@@ -49,7 +49,7 @@ jupyter:
 
 ## Declaration of Authorship {.unnumbered .unlisted}
 
-We, [insert your group's names], pledge our honour that the work presented in this assessment is our own. Where information has been derived from other sources, we confirm that this has been indicated in the work. Where a Large Language Model such as ChatGPT has been used we confirm that we have made its contribution to the final submission clear.
+We, [five guys], pledge our honour that the work presented in this assessment is our own. Where information has been derived from other sources, we confirm that this has been indicated in the work. Where a Large Language Model such as ChatGPT has been used we confirm that we have made its contribution to the final submission clear.
 
 Date:
 
