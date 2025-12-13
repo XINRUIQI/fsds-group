@@ -1,5 +1,5 @@
 ---
-date: last-modified 20251213.0
+date: last-modified 20251213.1
 bibliography: bio.bib
 csl: harvard-cite-them-right.csl
 title: Group Name's Group Project
