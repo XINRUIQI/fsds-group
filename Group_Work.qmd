@@ -65,7 +65,7 @@ Are there any areas on which you would appreciate more detailed feedback if we'r
 {{< pagebreak >}}
 ## Q1. Is Airbnb “out of control” in London?
 
-London’s 90-day rule is the key legal benchmark for assessing whether Airbnb is “out of control.” Under the Deregulation Act 2015, a dwelling may be short-let for up to 90 nights per calendar year without planning permission; exceeding this threshold constitutes a material change of use and is therefore unlawful. The rule aims to prevent the commercialisation of entire homes and protect long-term housing supply. Using the calendar and listings datasets in Jupyter, we calculated occupied_nights for entire homes to assess compliance. 
+London’s 90-day rule is the key legal benchmark for assessing whether Airbnb is “out of control[@Rozena07022023; @doi:10.1177/0042098020970865].” Under the Deregulation Act 2015, a dwelling may be short-let for up to 90 nights per calendar year without planning permission; exceeding this threshold constitutes a material change of use and is therefore unlawful[@doi:10.1177/0042098020970865]. The rule aims to prevent the commercialisation of entire homes and protect long-term housing supply. Using the calendar and listings datasets in Jupyter, we calculated occupied_nights for entire homes to assess compliance. 
 Three patterns indicate regulatory failure.
 
 ```{python}
@@ -511,7 +511,7 @@ Figure 3 – Commercial STR correlation: Areas with more commercial STRs show hi
 Together, these findings show that the 90-day rule is routinely breached in practice, and that London’s Airbnb market has expanded beyond effective regulatory control.
 
 
-A second way to assess whether Airbnb is “out of control” is to examine the commercialisation of London’s STR market. Prior research shows that when STR activity shifts from occasional home-sharing to investment-driven, multi-property operations, it withdraws units from the long-term rental market and contributes to rent inflation, displacement and neighbourhood change[@wachsmuth2018rentgap; @bivens2019airbnb]. Thus, commercialisation is not only an economic shift but a mechanism that increases housing pressure.
+A second way to assess whether Airbnb is “out of control” is to examine the commercialisation of London’s STR market[@ferreri2018platform; @Rozena07022023]. Prior research shows that when STR activity shifts from occasional home-sharing to investment-driven, multi-property operations, it withdraws units from the long-term rental market and contributes to rent inflation, displacement and neighbourhood change[@wachsmuth2018rentgap; @bivens2019airbnb]. Thus, commercialisation is not only an economic shift but a mechanism that increases housing pressure.
 
 Using the listings and calendar datasets in Jupyter, we detect commercialisation through host scale and availability intensity.
 
@@ -632,7 +632,7 @@ Figure 5 – Availability categories: Nearly half of entire homes show commercia
 In relation to “out of control,” these patterns show an STR sector functioning as de facto commercial accommodation, expanding beyond the level policymakers intended to regulate.
 
 
-A third indicator of whether Airbnb is “out of control” is the spatial concentration of STR activity, as dense or clustered STR markets are strongly associated with heightened housing pressure (Shabrina et al., 2022; Gyódi, 2024). Using borough-level listings, housing stock estimates, and spatial statistics computed in Jupyter, we identify three patterns.
+A third indicator of whether Airbnb is “out of control” is the spatial concentration of STR activity, as dense or clustered STR markets are strongly associated with heightened housing pressure [@doi:10.1177/0042098020970865; @Gyódi01092024]. Using borough-level listings, housing stock estimates, and spatial statistics computed in Jupyter, we identify three patterns.
 
 
 ```{python}
