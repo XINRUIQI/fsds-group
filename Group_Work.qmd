@@ -1,11 +1,11 @@
 ---
-date: last-modified 20251213.7
+date: last-modified
 bibliography: bio.bib
 csl: harvard-cite-them-right.csl
-title: Group Name's Group Project
+title: FIVE GUYS' Group Project
 execute:
   echo: false
-  freeze: true
+  freeze: false
 format:
   html:
     code-copy: true
@@ -26,7 +26,7 @@ format:
     papersize: a4
     geometry:
       - top=25mm
-      - left=40mm
+      - left=30mm
       - right=30mm
       - bottom=25mm
       - heightrounded
@@ -51,7 +51,7 @@ jupyter:
 
 We, [five guys], pledge our honour that the work presented in this assessment is our own. Where information has been derived from other sources, we confirm that this has been indicated in the work. Where a Large Language Model such as ChatGPT has been used we confirm that we have made its contribution to the final submission clear.
 
-Date:12/13/2025
+Date:21/11/2025
 
 Student Numbers: 
 
@@ -61,14 +61,8 @@ Are there any areas on which you would appreciate more detailed feedback if we'r
 
 {{< pagebreak >}}
 
-**Remove this page (up to the next `pagebreak`) prior to submission!**
 
 # Code Examples
-
-This page has example code to show you can include outputs while hiding code in Quarto, as well as some tools for interpolating data in the text. 
-
-See the raw file for examples of how to hide computational output as there is code hidden here.
-
 ```{python}
 #| echo: True 
 # This code will be shown, 
@@ -134,5 +128,3 @@ ax.set_xlim([0,500]);
 {{< include _questions.qmd >}}
 
 ## References
-
-1
