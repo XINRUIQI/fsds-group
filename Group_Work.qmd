@@ -511,7 +511,7 @@ Figure 3 – Commercial STR correlation: Areas with more commercial STRs show hi
 Together, these findings show that the 90-day rule is routinely breached in practice, and that London’s Airbnb market has expanded beyond effective regulatory control.
 
 
-A second way to assess whether Airbnb is “out of control” is to examine the commercialisation of London’s STR market. Prior research shows that when STR activity shifts from occasional home-sharing to investment-driven, multi-property operations, it withdraws units from the long-term rental market and contributes to rent inflation, displacement and neighbourhood change (Bivens, 2019; Wachsmuth & Weisler, 2018). Thus, commercialisation is not only an economic shift but a mechanism that increases housing pressure.
+A second way to assess whether Airbnb is “out of control” is to examine the commercialisation of London’s STR market. Prior research shows that when STR activity shifts from occasional home-sharing to investment-driven, multi-property operations, it withdraws units from the long-term rental market and contributes to rent inflation, displacement and neighbourhood change[@wachsmuth2018rentgap; @bivens2019airbnb]. Thus, commercialisation is not only an economic shift but a mechanism that increases housing pressure.
 
 Using the listings and calendar datasets in Jupyter, we detect commercialisation through host scale and availability intensity.
 
