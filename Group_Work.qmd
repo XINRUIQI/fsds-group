@@ -1024,7 +1024,8 @@ plt.legend()
 
 ```{python}
 #| echo: True 
-## 12 Generate point data + spatial join
+## 12 Plot professional landlord listings on the map
+# Generate point data + spatial join
 #| warning: false
 #| message: false
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -1051,12 +1052,8 @@ pts_boro = gpd.sjoin(
 )
 
 pl_pts = pts_boro[pts_boro["is_PL"] == True].copy()
-```
 
-```{python}
-#| echo: True 
-## 13 Plot professional landlord listings on the map
-
+# Plot the map
 import matplotlib.pyplot as plt
 
 fig, ax = plt.subplots(1, 1, figsize=(8, 8))
