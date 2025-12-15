@@ -20,6 +20,9 @@ format:
     include-in-header:
       text: |
         \addtokomafont{disposition}{\rmfamily}
+        \usepackage{fvextra}
+        \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere,commandchars=\\\{\}}
+        \fvset{breaklines=true,breakanywhere=true}
     mainfont: Spectral
     sansfont: "Roboto Flex"
     monofont: "Liberation Mono"
@@ -60,33 +63,1062 @@ Student Numbers:
 Are there any areas on which you would appreciate more detailed feedback if we're able to offer it?
 
 {{< pagebreak >}}
+## Q1. Is Airbnb “out of control” in London?
 
+London’s 90-day rule is the key legal benchmark for assessing whether Airbnb is “out of control.” Under the Deregulation Act 2015, a dwelling may be short-let for up to 90 nights per calendar year without planning permission; exceeding this threshold constitutes a material change of use and is therefore unlawful. The rule aims to prevent the commercialisation of entire homes and protect long-term housing supply. Using the calendar and listings datasets in Jupyter, we calculated occupied_nights for entire homes to assess compliance. 
+Three patterns indicate regulatory failure.
 
-# Code Examples
 ```{python}
 #| echo: True 
-# This code will be shown, 
-# but the next block will not
-import os
+#1 Imports & Paths & Constants
+import numpy as np
 import pandas as pd
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import requests
+import os
+
+from pathlib import Path
+from functools import wraps
+from libpysal.weights import Queen
+
+## 1.1 Project directories
+DATA_DIR = Path("data")
+RAW_DIR  = DATA_DIR / "raw"
+GEO_DIR  = DATA_DIR / "geo"
+TABLE_DIR = DATA_DIR / "table"
+
+for d in [DATA_DIR, RAW_DIR, GEO_DIR, TABLE_DIR]:
+    d.mkdir(parents=True, exist_ok=True)
+
+## 1.2 Data source configuration (ORCA)
+CITY = "London"
+
+CALENDAR_YMD = "20240614"
+LISTINGS_YMD = "20250615"
+
+HOST = "https://orca.casa.ucl.ac.uk"
+ORCA_PATH = "~jreades/data"
+
+CALENDAR_FILE = f"{CALENDAR_YMD}-{CITY}-calendar.csv.gz"
+LISTINGS_FILE = f"{LISTINGS_YMD}-{CITY}-listings.csv.gz"
+
+STOCK_CSV_PATH = TABLE_DIR / "social-landlord-housing-stock-borough.csv"
+
+## 1.3 Policy thresholds
+VIOLATION_THRESHOLD = 90          # London 90-day rule
+COMMERCIAL_AVAIL_THRESHOLD = 60   # proxy for commercial STR
+HOTEL_LIKE_OCC_THRESHOLD = 180    # hotel-like behaviour
+
+## 1.4 Plot defaults
+plt.rcParams.update({
+    "figure.figsize": (8, 5),
+    "axes.titlesize": 12,
+    "axes.labelsize": 10,
+})
+
+## 1.5 Utility helpers
+def vprint(verbose: bool, *args, **kwargs) -> None:
+    if verbose:
+        print(*args, **kwargs)
 ```
 
 ```{python}
-# This code is not shown because echo was
-# set to False in the header. You should
-# think carefully about whether you want
-# or need to show any code to the reader
-# in the PDf.
-host = 'https://orca.casa.ucl.ac.uk'
-path = '~jreades/data'
-file = '20250615-London-listings.parquet'
+#| echo: True 
+#2 Data Download & Caching 
+## 2.1 Cache
+def check_cache(f):
+    """Download file only if it does not already exist locally."""
+    @wraps(f)
+    def wrapper(src: str,dst_dir: Path,min_size: int = 1000,verbose: bool = False) -> Path:
+        filename = Path(src.split("?")[0]).name
+        dst = dst_dir / filename
+        if dst.exists() and dst.stat().st_size > min_size:
+            if verbose:
+                print(f"Using cached file: {dst.name}")
+            return dst
+        if verbose:
+            print(f"Downloading: {dst.name}")
+        return f(src, dst)
+    return wrapper
 
-if os.path.exists(file):
-  df = pd.read_parquet(file)
-else: 
-  df = pd.read_parquet(f'{host}/{path}/{file}')
-  df.to_parquet(file)
+@check_cache
+def cache_data(src: str, dst: Path) -> Path:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    response = requests.get(src)
+    response.raise_for_status()
+    dst.write_bytes(response.content)
+    return dst.resolve()
+
+## 2.2 Download ORCA Listing & Calendar
+listings_url = f"{HOST}/{ORCA_PATH}/{LISTINGS_FILE}"
+calendar_url = f"{HOST}/{ORCA_PATH}/{CALENDAR_FILE}"
+
+listings_path = cache_data(listings_url, RAW_DIR)
+calendar_path = cache_data(calendar_url, RAW_DIR)
+
+## 2.3 Download Borough Polygons (gpkg)
+borough_url = (
+    "https://raw.githubusercontent.com/jreades/fsds/"
+    "master/data/src/Boroughs.gpkg"
+)
+borough_path = cache_data(borough_url, GEO_DIR)
 ```
+
+
+```{python}
+#| echo: True 
+#| output: asis
+#3 Core Wrangling: read listings & stream calendar & merge & flags
+SHOW_TABLES = True
+CHUNK_SIZE = 200_000
+
+def load_listings(path: Path) -> pd.DataFrame:
+    """Read a minimal set of listing attributes."""
+    cols_in_file = pd.read_csv(path, nrows=0).columns.tolist()
+
+    desired = [ "id", "host_id", "room_type",
+                "neighbourhood_cleansed", 
+                "neighbourhood_group_cleansed", 
+                "latitude", "longitude", 
+                "number_of_reviews", "price",]
+    usecols = [c for c in desired if c in cols_in_file]
+    df = pd.read_csv(path, usecols=usecols, low_memory=False)
+
+    # clean price if present
+    if "price" in df.columns:
+        price_str = (df["price"].astype(str).str.replace(r"[^\d.]", "", regex=True))
+        df["price_clean"] = pd.to_numeric(price_str, errors="coerce")
+    return df
+
+def summarise_calendar_streaming(
+    path: Path,
+    chunk_size: int = CHUNK_SIZE,
+    start_date: str = "2024-06-14",
+    end_date: str   = "2025-06-14",
+    verbose: bool = False,
+) -> pd.DataFrame:
+    """Stream calendar.csv.gz""" 
+    """aggregate occupied/total nights per listing."""
+    agg = {}  # {listing_id: [occupied_nights, total_nights]}
+    if verbose:
+        print("Streaming calendar file...")
+
+    for chunk in pd.read_csv(
+        path,
+        chunksize=chunk_size,
+        usecols=["listing_id", "available", "date"],
+        low_memory=False
+    ):
+        chunk["date"] = pd.to_datetime(chunk["date"], errors="coerce")
+        chunk = chunk.dropna(subset=["date"])
+        mask = (chunk["date"] >= start_date) & (chunk["date"] < end_date)
+        chunk = chunk.loc[mask].copy()
+        if chunk.empty:
+            continue
+
+        # normalise availability flag
+        av = chunk["available"].astype(str).str.lower()
+        chunk["is_available"] = av.isin(["t", "true", "1", "yes"])
+
+        for lid, g in chunk.groupby("listing_id"):
+            total = len(g)
+            occ = int((~g["is_available"]).sum())  # occupied nights
+            if lid not in agg:
+                agg[lid] = [0, 0]
+            agg[lid][0] += occ
+            agg[lid][1] += total
+
+    if verbose:
+        print(f"Aggregated {len(agg):,} listings")
+
+
+    summary = (
+        pd.DataFrame.from_dict(agg,orient="index",columns=["occupied_nights", "total_nights"])
+        .reset_index()
+        .rename(columns={"index": "listing_id"})
+    )
+
+    summary["available_nights"] = (summary["total_nights"] - summary["occupied_nights"])
+    summary["occupancy_rate"] = (summary["occupied_nights"] / summary["total_nights"])
+    return summary
+
+def merge_calendar_listings(occ_summary: pd.DataFrame,listings: pd.DataFrame) -> pd.DataFrame:
+    cols_to_keep = [
+        "id", "host_id", "room_type",
+        "neighbourhood_cleansed", "neighbourhood_group_cleansed",
+        "latitude", "longitude",
+        "number_of_reviews", "price_clean",
+    ]
+    keep = [c for c in cols_to_keep if c in listings.columns]
+
+    return occ_summary.merge(
+        listings[keep].drop_duplicates(subset="id"),
+        left_on="listing_id",
+        right_on="id",
+        how="left",
+    )
+
+def add_core_flags(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+
+    # entire home flag
+    room = out.get("room_type")
+    out["is_entire_home"] = (
+        room.astype(str).str.contains("entire", case=False, na=False)
+        if room is not None else False
+    )
+
+    # 90-day rule violation (entire homes only)
+    out["violates_90day"] = (
+        out["is_entire_home"]
+        & (out["occupied_nights"] > VIOLATION_THRESHOLD)
+    )
+
+    # commercial STR (your logic: available nights > threshold)
+    out["commercial_STR"] = (
+        out["is_entire_home"]
+        & (out["available_nights"] > COMMERCIAL_AVAIL_THRESHOLD)
+    )
+
+    # hotel-like (your logic: occupied nights > threshold)
+    out["hotel_like_STR"] = (
+        out["is_entire_home"]
+        & (out["occupied_nights"] > HOTEL_LIKE_OCC_THRESHOLD)
+    )
+
+    return out
+
+def prepare_merged(calendar_path: Path,listings_path: Path,verbose: bool = False) -> pd.DataFrame:
+    if verbose:
+        print("=== Calendar → occupancy summary ===")
+
+    occ_summary = summarise_calendar_streaming(calendar_path,verbose=verbose)
+    if verbose:
+        print("calendar summary:", occ_summary.shape)
+        print("=== Listings → attributes ===")
+
+
+    listings = load_listings(listings_path)
+    if verbose:
+        print("listings:", listings.shape)
+        print("=== Merge + policy flags ===")
+
+    merged = merge_calendar_listings(occ_summary, listings)
+    merged = add_core_flags(merged)
+    if verbose:
+        print("merged:", merged.shape)
+    
+    return merged
+
+merged = prepare_merged(calendar_path=calendar_path,listings_path=listings_path)
+
+if SHOW_TABLES:
+    merged.sample(5, random_state=42)
+```
+
+```{python}
+#| echo: True 
+#4 Q1.1 Policy (90-day rule)
+## 4.1 Function Definitions
+def _entire_home_listings(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Return one row per listing, restricted to entire-home listings.
+    Assumes a unique listing_id identifies a listing across calendar rows.
+    """
+    if "is_entire_home" not in df.columns:
+        raise KeyError("Missing column: is_entire_home (run add_core_flags first).")
+
+    return (df.loc[df["is_entire_home"]].drop_duplicates(subset="listing_id").copy())
+
+def citywide_violation_stats(df: pd.DataFrame, verbose: bool = False) -> dict:
+    """Citywide summary of 90-day rule violations among entire homes."""
+    entire = _entire_home_listings(df)
+    total_entire = int(entire["listing_id"].nunique())
+
+    n_viol = int(entire["violates_90day"].sum()) if "violates_90day" in entire.columns else 0
+    share_viol = (n_viol / total_entire) if total_entire > 0 else np.nan
+
+    out = { "total_entire_homes": total_entire,
+        "n_violations": n_viol,
+        "share_violations": share_viol,
+    }
+    vprint(verbose, "Citywide stats:", out)
+    return out
+
+def violation_by_borough(df: pd.DataFrame,borough_col: str = "neighbourhood_cleansed",) -> pd.DataFrame:
+    """Borough-level 90-day violation counts and shares (entire homes only)."""
+    entire = _entire_home_listings(df).dropna(subset=[borough_col]).copy()
+
+    out = (
+        entire.groupby(borough_col, as_index=False)
+              .agg(
+                  n_entire=("listing_id", "nunique"),
+                  n_violations=("violates_90day", "sum"),
+              )
+    )
+    out["share_violations"] = out["n_violations"] / out["n_entire"]
+    out = out.rename(columns={borough_col: "borough"})
+    return out
+
+def commercial_by_borough(df: pd.DataFrame,borough_col: str = "neighbourhood_cleansed",) -> pd.DataFrame:
+    """Borough-level commercial STR counts and shares (entire homes only)."""
+    entire = _entire_home_listings(df).dropna(subset=[borough_col]).copy()
+
+    out = (
+        entire.groupby(borough_col, as_index=False)
+              .agg(
+                  n_entire=("listing_id", "nunique"),
+                  n_commercial=("commercial_STR", "sum"),
+              )
+    )
+    out["commercial_share"] = out["n_commercial"] / out["n_entire"]
+    out = out.rename(columns={borough_col: "borough"})
+    return out
+
+def build_borough_policy_table(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Borough-level table used in the policy section:
+      - share_violations (90-day rule)
+      - commercial_share (commercial STR)
+    """
+    policy = violation_by_borough(df)
+    comm = commercial_by_borough(df)
+
+    out = (
+        policy.merge(comm[["borough", "commercial_share"]], on="borough", how="inner")
+              .dropna(subset=["share_violations", "commercial_share"])
+    )
+    return out
+
+## 4.2 Plots
+def plot_occupied_nights_hist(df: pd.DataFrame) -> None:
+    """Figure 1: Distribution of occupied nights for entire-home listings."""
+    entire = _entire_home_listings(df)
+    x = entire["occupied_nights"].dropna()
+
+    plt.figure()
+    plt.hist(x, bins=50)
+    plt.axvline(VIOLATION_THRESHOLD, linestyle="--")
+    plt.xlabel("Occupied nights (entire homes)")
+    plt.ylabel("Number of listings")
+    plt.title("Figure-1 Distribution of Occupied Nights (Entire Homes)")
+    plt.tight_layout()
+
+def plot_top_violation_areas(neigh_stats: pd.DataFrame, top_n: int = 20) -> None:
+    """Figure 2: Boroughs with the highest violation share."""
+    df = neigh_stats.sort_values("share_violations", ascending=False).head(top_n)
+
+    plt.figure(figsize=(10, 6))
+    plt.barh(df["borough"], df["share_violations"])
+    plt.gca().invert_yaxis()
+    plt.xlabel("Share of entire homes violating 90-day rule")
+    plt.title(f"Figure-2 Top {top_n} Areas by Violation Share")
+    plt.tight_layout()
+
+def plot_share_commercial_vs_violations(neigh_stats: pd.DataFrame) -> None:
+    df = neigh_stats.dropna(subset=["share_violations", "commercial_share", "borough"]).copy()
+    if df.empty:
+        print("No valid boroughs for Figure 3, skipping plot.")
+        return
+
+    """Figure 3: Commercial STR share vs 90-day violation share by borough."""
+    df["borough_label"] = df["borough"].astype(str).str.strip().str.title()
+
+    plt.figure(figsize=(10, 6))
+
+    plt.scatter(df["share_violations"], df["commercial_share"], s=60, alpha=0.8)
+    
+    dx, dy = 0.002, 0.002
+    for _, r in df.iterrows():
+        plt.text(
+            r["share_violations"] + dx,
+            r["commercial_share"] + dy,
+            r["borough_label"],
+            fontsize=9
+        )
+    plt.xlabel("Share of 90-day violations (entire homes)")
+    plt.ylabel("Share of commercial STR (entire homes)")
+    plt.title("Figure-3 Commercial STR vs 90-day Violations by Borough")
+    plt.tight_layout()
+```
+
+
+```{python}
+#| echo: True 
+## 4.3 Citywide 90-day rule stats + Figure 1 (toggleable)
+RUN_CITYWIDE = True
+SHOW_CITY_STATS = False
+SHOW_CITY_PLOT  = True
+
+if RUN_CITYWIDE:
+    city = citywide_violation_stats(merged)
+
+    if SHOW_CITY_STATS:
+        print("=== Citywide 90-day rule stats ===")
+        print(city)
+
+    # Figure 1
+    if SHOW_CITY_PLOT:
+        plot_occupied_nights_hist(merged)
+```
+Figure 1 – Occupied nights: Many entire homes exceed the 90-night legal limit, showing widespread violation.
+
+```{python}
+#| echo: True 
+## 4.4 Neighbourhood (borough) table + Figure 2 (toggleable)
+RUN_NEIGH = True           
+SHOW_NEIGH_TABLE = False   
+SHOW_NEIGH_PLOT  = True   
+
+TOP_N = 20
+
+if RUN_NEIGH:
+    neigh = violation_by_borough(merged)
+    
+    if SHOW_NEIGH_TABLE:
+        print("\n=== Neighbourhood (borough) violation table (top 10 by share) ===")
+        print(neigh.sort_values("share_violations", ascending=False).head(10))
+
+    # Figure 2
+    if SHOW_NEIGH_PLOT:
+        plot_top_violation_areas(neigh, top_n=TOP_N)
+```
+Figure 2 – Borough violation rates: Multiple boroughs record 70–85% non-compliance, indicating structural enforcement gaps.
+
+
+```{python}
+#| echo: True 
+# 4.5 Policy Figure 3: Commercial STR vs 90-day violations (toggleable)
+RUN_FIG3 = True
+SHOW_FIG3_STATS = False
+SHOW_FIG3_PLOT = True
+
+if RUN_FIG3:
+    neigh_stats = build_borough_policy_table(merged)
+
+    if SHOW_FIG3_STATS:
+        print("\n=== Commercial STR vs 90-day violations ===")
+        print(neigh_stats.head())
+
+    if SHOW_FIG3_PLOT:
+        plot_share_commercial_vs_violations(neigh_stats)
+```
+Figure 3 – Commercial STR correlation: Areas with more commercial STRs show higher violation rates, suggesting professional landlords drive much of the unlawful activity.
+
+Together, these findings show that the 90-day rule is routinely breached in practice, and that London’s Airbnb market has expanded beyond effective regulatory control.
+
+
+A second way to assess whether Airbnb is “out of control” is to examine the commercialisation of London’s STR market. Prior research shows that when STR activity shifts from occasional home-sharing to investment-driven, multi-property operations, it withdraws units from the long-term rental market and contributes to rent inflation, displacement and neighbourhood change (Bivens, 2019; Wachsmuth & Weisler, 2018). Thus, commercialisation is not only an economic shift but a mechanism that increases housing pressure.
+
+Using the listings and calendar datasets in Jupyter, we detect commercialisation through host scale and availability intensity.
+
+
+```{python}
+#| echo: True 
+#5 Q1.2 Commercialisation
+## 5.1 Function Definitions
+def _unique_listings(df: pd.DataFrame) -> pd.DataFrame:
+    """Return one row per listing."""
+    return df.drop_duplicates(subset="listing_id").copy()
+
+def compute_entire_home_stats(df: pd.DataFrame) -> dict:
+    """Summary stats for entire-home listings and commercialisation proxies."""
+    d = _unique_listings(df)
+
+    total = int(d["listing_id"].nunique())
+    entire = d.loc[d["is_entire_home"]].copy()
+    n_entire = int(entire["listing_id"].nunique())
+
+    share_entire = (n_entire / total) if total else np.nan
+
+    n_commercial = int(entire["commercial_STR"].sum())
+    n_hotel_like = int(entire["hotel_like_STR"].sum())
+
+    share_commercial = (n_commercial / n_entire) if n_entire else np.nan
+    share_hotel_like = (n_hotel_like / n_entire) if n_entire else np.nan
+
+    # optional: "legal but commercial" (commercial proxy but not >90 occupied)
+    n_legal_but_commercial = int(((~entire["violates_90day"]) & (entire["commercial_STR"])).sum())
+    share_legal_but_commercial = (n_legal_but_commercial / n_entire) if n_entire else np.nan
+
+    return {
+        "total_listings": total,
+        "n_entire": n_entire,
+        "share_entire": share_entire,
+        "n_commercial_entire": n_commercial,
+        "share_commercial_entire": share_commercial,
+        "n_hotel_like_entire": n_hotel_like,
+        "share_hotel_like_entire": share_hotel_like,
+        "n_legal_but_commercial_entire": n_legal_but_commercial,
+        "share_legal_but_commercial_entire": share_legal_but_commercial,
+    }
+
+def host_listing_counts(df: pd.DataFrame) -> pd.Series:
+    """Number of listings per host (unique listings)."""
+    d = _unique_listings(df)
+    return d.groupby("host_id")["listing_id"].nunique()
+
+## 5.2 Plots
+def plot_host_distribution(host_structure_stats: dict, max_listings: int = 12) -> None:
+    """Figure-4: Host distribution (capped)."""
+    vc = host_counts.value_counts().sort_index()
+    vc = vc[vc.index <= max_listings]
+
+    plt.figure(figsize=(8, 5))
+    plt.bar(vc.index.astype(int), vc.values)
+    plt.xlabel("Listings per host")
+    plt.ylabel("Number of hosts")
+    plt.title("Figure-4 Host Distribution (Capped)")
+    plt.tight_layout()
+
+def plot_commercial_composition(stats: dict) -> None:
+    """Figure-5: Composition of commercialisation (shares among entire homes)."""
+    labels = ["Commercial STR","Hotel-like STR","Legal but commercial"]
+    values = [
+        stats["share_commercial_entire"],
+        stats["share_hotel_like_entire"],
+        stats["share_legal_but_commercial_entire"],
+    ]
+
+    plt.figure(figsize=(7, 4))
+    plt.bar(labels, values)
+    plt.ylabel("Share of entire-home listings")
+    plt.ylim(0, 1)
+    plt.title("Figure-5 Commercialisation Composition (Entire Homes)")
+    plt.tight_layout()
+```
+
+
+```{python}
+#| echo: True 
+## 5.3 Compute Stats Only
+RUN_COMMERCIAL = True
+SHOW_COMM_STATS = False
+
+if RUN_COMMERCIAL:
+    comm_stats = compute_entire_home_stats(merged)
+    host_counts = host_listing_counts(merged)
+
+    if SHOW_COMM_STATS:
+        print("=== Commercialisation summary (entire homes) ===")
+        for k, v in comm_stats.items():
+            print(f"{k}: {v:.3f}" if isinstance(v, float) else f"{k}: {v}")
+```
+
+```{python}
+#| echo: True 
+## 5.4 Figure 4: Host distribution
+SHOW_HOST_PLOT = True   
+
+if RUN_COMMERCIAL and SHOW_HOST_PLOT:
+    plot_host_distribution(host_counts, max_listings=12)
+```
+Figure 4 – Host size distribution: Most hosts manage one listing, but thousands operate multiple units and a notable cohort controls 10+. This indicates professional landlord activity rather than casual participation.
+
+
+```{python}
+#| echo: True 
+## 5.5 Figure 5: Commercial composition
+SHOW_COMM_COMP_PLOT = True   
+
+if RUN_COMMERCIAL and SHOW_COMM_COMP_PLOT:
+    plot_commercial_composition(comm_stats)
+```
+Figure 5 – Availability categories: Nearly half of entire homes show commercial or hotel-like availability, implying year-round operation and reinforcing the withdrawal of housing from long-term use.
+
+In relation to “out of control,” these patterns show an STR sector functioning as de facto commercial accommodation, expanding beyond the level policymakers intended to regulate.
+
+
+A third indicator of whether Airbnb is “out of control” is the spatial concentration of STR activity, as dense or clustered STR markets are strongly associated with heightened housing pressure (Shabrina et al., 2022; Gyódi, 2024). Using borough-level listings, housing stock estimates, and spatial statistics computed in Jupyter, we identify three patterns.
+
+
+```{python}
+#| echo: True 
+#6 Spatial Join & Build Borough-level Tables 
+## 6.1 Read borough polygons
+boros = gpd.read_file(borough_path)
+boros["borough"] = boros["NAME"].astype(str).str.strip().str.lower()
+
+## 6.2 Point GeoDataFrame & spatial join
+# Create point-level GeoDataFrame (borough polygons remain unchanged)
+pts = gpd.GeoDataFrame(
+    merged.copy(),
+    geometry=gpd.points_from_xy(merged["longitude"], merged["latitude"]),
+    crs="EPSG:4326"
+).to_crs(boros.crs)
+
+pts_boro = (
+    gpd.sjoin(pts, boros[["borough", "geometry"]], how="left", predicate="within")
+    .dropna(subset=["borough"])
+    .copy()
+)
+
+## 6.3 Spatial Map 1: STR density per 1000 dwellings 
+stock = pd.read_csv(STOCK_CSV_PATH)
+dwell_col = "Number of self-contained units or bedspaces-2024"
+
+"""housing stock (denominator)"""
+housing = (
+    stock
+    .assign(
+        borough=stock["Area"].astype(str).str.strip().str.lower(),
+        dwellings=(
+            stock[dwell_col]
+            .astype(str)
+            .str.replace(",", "", regex=False)
+        )
+    )
+)
+
+housing["dwellings"] = pd.to_numeric(housing["dwellings"], errors="coerce")
+housing = housing[["borough", "dwellings"]]
+
+"""STR counts (numerator)"""
+borough_counts = (
+    pts_boro.groupby("borough", as_index=False)
+    .agg(n_listings=("listing_id", "nunique"))
+)
+
+"""density per 1,000 dwellings """
+density_df = borough_counts.merge(housing, on="borough", how="left")
+density_df["str_density_per_1000"] = (
+    density_df["n_listings"] / density_df["dwellings"] * 1000
+)
+
+boros_density = boros.merge(
+    density_df[["borough", "str_density_per_1000"]],
+    on="borough",
+    how="left",
+)
+
+## 6.4 Spatial Map 2: Commercial STR share
+borough_comm = (
+    pts_boro.groupby("borough", as_index=False)
+    .agg(
+        n_total=("listing_id", "nunique"),
+        n_commercial=("commercial_STR", "sum"),
+    )
+)
+
+borough_comm["commercial_share"] = (borough_comm["n_commercial"] / borough_comm["n_total"])
+
+boros_comm = boros.merge(
+    borough_comm[["borough", "commercial_share"]],
+    on="borough",
+    how="left",
+)
+
+## 6.5 plot
+def plot_borough_choropleth(
+    gdf: gpd.GeoDataFrame,
+    column: str,
+    title: str,
+    cmap: str = "OrRd",
+    figsize: tuple = (8, 8),
+) -> None:
+    ax = gdf.plot(
+        column=column,
+        legend=True,
+        cmap=cmap,
+        figsize=figsize,
+        edgecolor="white",
+        linewidth=0.5,
+        missing_kwds={
+            "color": "lightgrey",
+            "label": "No data",
+        },
+    )
+    ax.set_title(title)
+    ax.set_axis_off()
+    plt.tight_layout()
+```
+
+```{python}
+#| echo: True 
+## 6.6 Spatial Map 1: STR density per 1,000 dwellings
+SHOW_MAP_STR_DENSITY = True
+
+if SHOW_MAP_STR_DENSITY:
+    plot_borough_choropleth(
+        boros_density,
+        column="str_density_per_1000",
+        title="Map-1 STR Density (Listings per 1,000 dwellings)",
+        cmap="OrRd",
+        figsize=(8, 8),
+    )
+```
+Map 1– STR density: Central boroughs exhibit densities far above the rest of London, indicating intense competition for housing in areas already under market pressure.
+
+
+```{python}
+#| echo: True 
+## 6.7 Spatial Map 2: Commercial STR share by borough
+SHOW_MAP_COMMERCIAL = True
+
+if SHOW_MAP_COMMERCIAL:
+    plot_borough_choropleth(
+        boros_comm,
+        column="commercial_share",
+        title="Map-2 Commercial STR Share by Borough",
+        cmap="PuRd",
+        figsize=(7, 7),
+    )
+```
+Map 2 – Commercial STR share: These same boroughs also display high proportions of commercial STRs, reinforcing their role as hotspots of investment-driven short letting rather than casual home-sharing.
+
+
+
+```{python}
+#| echo: True 
+#7 Spatial Autocorrelation (Global Moran + Moran scatter + Local Moran LISA map)
+## 7.1 Defination & Compute
+RUN_SPATIAL_STATS = True
+VERBOSE_SPATIAL = True  
+
+"""Moran's I + LISA (no esda)"""
+def morans_I_global(z: np.ndarray, w) -> float:
+    """Observed Global Moran's I using row-standardised weights."""
+    n = len(z)
+    S0 = w.s0
+    Wz = w.sparse @ z
+    return (n / S0) * (z @ Wz) / (z @ z)
+
+
+def permute_global_I(z: np.ndarray, w, perms: int = 999, seed: int = 42) -> tuple[float, float, np.ndarray]:
+    """Permutation test (two-sided) for Global Moran's I."""
+    rng = np.random.default_rng(seed)
+    I_obs = morans_I_global(z, w)
+
+    I_perm = np.empty(perms, dtype=float)
+    for p in range(perms):
+        z_perm = rng.permutation(z)
+        I_perm[p] = morans_I_global(z_perm, w)
+
+    p_two = (np.sum(np.abs(I_perm) >= np.abs(I_obs)) + 1) / (perms + 1)
+    return I_obs, p_two, I_perm
+
+
+def lisa_no_esda(z: np.ndarray, w, perms: int = 999, seed: int = 42, alpha: float = 0.05) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Local Moran-style cluster labels using permutations (no esda)."""
+    """Observed local stat: Ii = z_i * (Wz)_i  (row-standardised W)"""
+    """p-values computed two-sided via permutation distribution of Ii."""
+    rng = np.random.default_rng(seed)
+
+    lag_z = w.sparse @ z
+    Ii_obs = z * lag_z
+
+    # simulate: for each permutation, compute Ii_perm for all i at once
+    sims = np.empty((perms, len(z)), dtype=float)
+    for p in range(perms):
+        z_perm = rng.permutation(z)
+        sims[p, :] = z * (w.sparse @ z_perm)   # keep z_i fixed, permute neighbors globally
+
+    # two-sided p-values
+    p_local = (np.sum(np.abs(sims) >= np.abs(Ii_obs), axis=0) + 1) / (perms + 1)
+
+    # quadrant-based cluster labels (significant only)
+    cluster = np.full(len(z), "Not significant", dtype=object)
+    sig = p_local <= alpha
+
+    cluster[sig & (z > 0) & (lag_z > 0)] = "High-High"
+    cluster[sig & (z < 0) & (lag_z < 0)] = "Low-Low"
+    cluster[sig & (z > 0) & (lag_z < 0)] = "High-Low"
+    cluster[sig & (z < 0) & (lag_z > 0)] = "Low-High"
+
+    return lag_z, p_local, cluster
+
+"""prepare gdf and z"""
+gdf = (
+    boros_density[["geometry", "str_density_per_1000"]]
+    .dropna(subset=["str_density_per_1000"])
+    .reset_index(drop=True)
+)
+
+y = gdf["str_density_per_1000"].to_numpy(float)
+z = (y - y.mean()) / y.std(ddof=1)  # z-score
+
+# weights
+w = Queen.from_dataframe(gdf, use_index=False)
+w.transform = "R"
+
+# Global Moran
+
+if RUN_SPATIAL_STATS:
+    I_obs, p_two, I_perm = permute_global_I(z, w, perms=999, seed=42)
+
+    vprint(
+        VERBOSE_SPATIAL,
+        f"Global Moran's I: {I_obs:.4f} "
+        f"(two-sided p={p_two:.4f}, 999 permutations)"
+    )
+
+# Local (LISA-style)
+if RUN_SPATIAL_STATS:
+    alpha = 0.05
+    lag_z, p_local, cluster = lisa_no_esda(
+        z, w, perms=999, seed=42, alpha=alpha
+    )
+
+    gdf_lisa = gdf.copy()
+    gdf_lisa["z"] = z
+    gdf_lisa["lag_z"] = lag_z
+    gdf_lisa["p"] = p_local
+    gdf_lisa["cluster"] = cluster
+
+    vprint(
+        VERBOSE_SPATIAL,
+        gdf_lisa["cluster"].value_counts()
+    )
+```
+
+```{python}
+#| echo: True 
+## 7.2 Global Moran's I: Moran scatterplot
+SHOW_MORAN_SCATTER = False
+
+# Moran scatterplot
+if SHOW_MORAN_SCATTER:
+    plt.figure(figsize=(6, 6))
+    plt.scatter(z, lag_z, s=25)
+    plt.axhline(0, linewidth=1)
+    plt.axvline(0, linewidth=1)
+
+    slope = np.polyfit(z, lag_z, 1)[0]  # slope ≈ Moran's I
+    xs = np.array([z.min(), z.max()])
+    plt.plot(xs, slope * xs)
+
+    plt.xlabel("Standardised STR density (z)")
+    plt.ylabel("Spatial lag (Wz)")
+    plt.title(f"Moran scatterplot (slope≈I={I_obs:.3f})")
+    plt.tight_layout()
+```
+
+```{python}
+#| echo: True 
+## 7.3 Local Moran's I: LISA Cluster Map
+SHOW_LISA_MAP = True
+
+if SHOW_LISA_MAP:
+    lisa_colors = {
+    "High-High": "#d7191c",
+    "Low-Low": "#2c7bb6",
+    "High-Low": "#fdae61",
+    "Low-High": "#abd9e9",
+    "Not significant": "#d9d9d9",
+    }
+
+    ax = gdf_lisa.plot(
+    color=gdf_lisa["cluster"].map(lisa_colors),
+    edgecolor="white",
+    linewidth=0.8,
+    figsize=(8, 8),
+    )
+
+    ax.set_title(f"Map-3 Local Moran's I (LISA) clusters for STR density (p ≤ {alpha})")
+    ax.set_axis_off()
+
+    handles = [
+    mpatches.Patch(color=lisa_colors[k], label=k)
+    for k in ["High-High", "Low-Low", "High-Low", "Low-High", "Not significant"]
+]
+ax.legend(handles=handles, title="LISA cluster type", loc="upper right")
+
+plt.tight_layout()
+```
+Map 3– LISA clustering: Local Moran’s I reveals a significant High–High cluster in the city centre, showing that STR pressures are spatially reinforcing rather than randomly distributed.
+
+In relation to “out of control,” the spatial evidence suggests that STR activity concentrates in sensitive housing markets, amplifying displacement risks and exceeding the city’s capacity to manage its geographic impacts.
+
+
+Across regulatory, commercial, and spatial dimensions, London’s STR activity consistently exceeds intended limits, with widespread rule violations, professionalised hosting, and concentrated hotspots—together indicating an Airbnb market that is effectively out of control.
+
+
+```{python}
+#| echo: True 
+## 8 Select professional landlords
+SHOW_RESULTS = False
+listings = pd.read_csv(listings_path)
+if SHOW_RESULTS:
+    print("Listings:", listings.shape)
+
+cols = [
+    "id", "host_id", "room_type",
+    "availability_365", "neighbourhood_cleansed",
+    "latitude", "longitude"
+]
+
+df = listings[cols].copy()    
+if SHOW_RESULTS:
+    print("Columns loaded:", df.columns)
+```
+
+```{python}
+#| echo: True 
+## 9 calculate professional landlords
+host_stats = df.groupby("host_id").agg(
+    total_listings = ('id','count'),
+    entire_homes   = ('room_type', lambda x: (x=="Entire home/apt").sum()),
+    avail_over_90  = ('availability_365', lambda x: (x>90).sum())
+).reset_index()
+
+host_stats["is_PL"] = (
+    ((host_stats.total_listings >= 3) | (host_stats.entire_homes >= 2))
+    & (host_stats.avail_over_90 > 0)
+)
+
+final_hosts = host_stats[host_stats.is_PL].host_id.unique()
+
+Q2 = len(final_hosts)
+if SHOW_RESULTS:
+    print("Q2 Number of professional landlords =", Q2)
+```
+
+```{python}
+#| echo: True 
+## 10 Calculate host's listing and proportion
+df["is_PL_listing"] = df["host_id"].isin(final_hosts)
+Q31 = df["is_PL_listing"].sum()
+if SHOW_RESULTS:
+    print("Q3.1 Number of Properties Owned by Professional Landlords =", Q31)
+
+total_listings = len(df)
+Q32 = Q31 / total_listings
+if SHOW_RESULTS:
+    print("Q3.2 Proportion of properties listed by professional landlords =", round(Q32,4))
+```
+
+```{python}
+#| echo: True 
+## 11 Map distribution of multi-listing hosts
+PL_hosts = host_stats[host_stats.is_PL]
+non_PL_hosts = host_stats[~host_stats.is_PL]
+
+PL_plot = PL_hosts[PL_hosts.total_listings > 1]
+non_PL_plot = non_PL_hosts[non_PL_hosts.total_listings > 1]
+
+plt.figure(figsize=(8,5))
+
+plt.hist(
+    PL_plot["total_listings"],
+    bins=range(2, 50),
+    alpha=0.7,
+    label="Professional landlords"
+)
+
+plt.hist(
+    non_PL_plot["total_listings"],
+    bins=range(2, 50),
+    alpha=0.7,
+    label="Non-professional landlords"
+)
+
+plt.xlim(2, 50)
+plt.xlabel("Number of listings per host (>1)")
+plt.ylabel("Number of hosts")
+plt.title("Distribution of multi-listing hosts")
+plt.legend()
+```
+
+```{python}
+#| echo: True 
+## 12 Generate point data + spatial join
+if "is_PL" not in merged.columns:
+    merged = merged.merge(
+        host_stats[["host_id", "is_PL"]],
+        on="host_id",
+        how="left"
+    )
+    merged["is_PL"] = merged["is_PL"].fillna(False)
+
+pts = gpd.GeoDataFrame(
+    merged.copy(),
+    geometry=gpd.points_from_xy(merged["longitude"], merged["latitude"]),
+    crs="EPSG:4326"
+).to_crs(boros.crs)
+
+pts_boro = gpd.sjoin(
+    pts,
+    boros[["borough", "geometry"]],
+    how="left",
+    predicate="within"
+)
+
+pl_pts = pts_boro[pts_boro["is_PL"] == True].copy()
+```
+
+```{python}
+#| echo: True 
+## 13 Plot professional landlord listings on the map
+
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+
+# Borough boundaries
+boros.plot(
+    ax=ax,
+    color="white",
+    edgecolor="black",
+    linewidth=0.5
+)
+
+# Professional landlord listings
+pl_pts.plot(
+    ax=ax,
+    color="red",
+    markersize=1,
+    alpha=0.4
+)
+
+ax.set_title("Spatial distribution of professional landlord listings in London")
+ax.axis("off")
+
+# ---- Scale bar ----
+xmin, ymin, xmax, ymax = boros.total_bounds
+scale_length = 5000  # 5 km
+
+x_start = xmin + 0.05 * (xmax - xmin)
+y_start = ymin + 0.05 * (ymax - ymin)
+
+ax.plot(
+    [x_start, x_start + scale_length],
+    [y_start, y_start],
+    color="black",
+    linewidth=3
+)
+
+ax.text(
+    x_start + scale_length / 2,
+    y_start + 0.01 * (ymax - ymin),
+    "5 km",
+    ha="center",
+    va="bottom",
+    fontsize=10
+)
+
+# ---- North arrow ----
+arrow_x = xmin + 0.90 * (xmax - xmin)
+arrow_y = ymin + 0.15 * (ymax - ymin)
+
+ax.annotate(
+    'N',
+    xy=(arrow_x, arrow_y + 3000),
+    xytext=(arrow_x, arrow_y),
+    arrowprops=dict(facecolor='black', width=4, headwidth=12),
+    ha='center',
+    va='center',
+    fontsize=12,
+    fontweight='bold'
+)
+```
+
+
+
+
+{{< pagebreak >}}
+
 
 An inline citation example: As discussed on @insideairbnb, there are many...
 
@@ -116,15 +1148,10 @@ The other way is to interpolate it directly into the sentence like this (`{pytho
 
 And here's a nice little chart straight into the document!
 
-```{python}
-ax = df.host_listings_count.plot.hist(bins=50);
-ax.set_xlim([0,500]);
-```
 
 {{< pagebreak >}}
 
 # Briefing
 
-{{< include _questions.qmd >}}
 
 ## References
