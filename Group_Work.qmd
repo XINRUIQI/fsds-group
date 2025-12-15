@@ -52,7 +52,7 @@ jupyter:
 
 ## Declaration of Authorship {.unnumbered .unlisted}
 
-We, [five guys], pledge our honour that the work presented in this assessment is our own. Where information has been derived from other sources, we confirm that this has been indicated in the work. Where a Large Language Model such as ChatGPT has been used we confirm that we have made its contribution to the final submission clear.
+We, FIVE GUYS, pledge our honour that the work presented in this assessment is our own. Where information has been derived from other sources, we confirm that this has been indicated in the work. Where a Large Language Model such as ChatGPT has been used we confirm that we have made its contribution to the final submission clear.
 
 Date:21/11/2025
 
@@ -77,6 +77,7 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import requests
+import warnings
 import os
 
 from pathlib import Path
@@ -775,7 +776,7 @@ Map 2 – Commercial STR share: These same boroughs also display high proportion
 #7 Spatial Autocorrelation (Global Moran + Moran scatter + Local Moran LISA map)
 ## 7.1 Defination & Compute
 RUN_SPATIAL_STATS = True
-VERBOSE_SPATIAL = True  
+VERBOSE_SPATIAL = False  
 
 """Moran's I + LISA (no esda)"""
 def morans_I_global(z: np.ndarray, w) -> float:
@@ -1024,6 +1025,10 @@ plt.legend()
 ```{python}
 #| echo: True 
 ## 12 Generate point data + spatial join
+#| warning: false
+#| message: false
+warnings.filterwarnings("ignore", category=FutureWarning)
+
 if "is_PL" not in merged.columns:
     merged = merged.merge(
         host_stats[["host_id", "is_PL"]],
@@ -1112,6 +1117,7 @@ ax.annotate(
     fontsize=12,
     fontweight='bold'
 )
+plt.show()
 ```
 
 
