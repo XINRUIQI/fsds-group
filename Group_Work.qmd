@@ -936,6 +936,11 @@ In relation to “out of control,” the spatial evidence suggests that STR acti
 Across regulatory, commercial, and spatial dimensions, London’s STR activity consistently exceeds intended limits, with widespread rule violations, professionalised hosting, and concentrated hotspots—together indicating an Airbnb market that is effectively out of control.
 
 
+## Q2. How many professional landlords are there?
+## Defining Professional Landlords
+
+To accurately assess the potential impact of the opposition's proposal, this analysis first established a rigorous quantitative standard to distinguish between "sharing economy participants" and "commercial operators." Drawing on research by [@wachsmuth2018rentgap] regarding the structure of short-term rental markets, relying solely on the number of listings is insufficient to fully define commercial attributes; therefore, listing type and activity levels must be integrated into the assessment.Consequently, we formulated the following logic to define a "Professional Landlord" within the data processing workflow: the host must meet a dual threshold of "Operational Scale" and "Activity Level." In terms of scale, the definition includes hosts owning 3 or more listings of any type, or 2 or more "entire home" listings. This distinction is based on the premise that hosts with multiple entire homes cannot simultaneously inhabit these properties, rendering their activity "necessarily commercial" rather than residential sharing.Regarding activity level, we excluded inactive accounts by including only those with an annual availability exceeding 90 days. As noted by [@gurran2017airbnb], high-frequency short-term letting (e.g., exceeding 90 days) is a critical indicator for determining whether housing has been removed from the permanent rental market, thereby causing neighborhood disruption.
+
 ```{python}
 #| echo: True 
 ## 8 Select professional landlords
@@ -976,6 +981,8 @@ if SHOW_RESULTS:
     print("Q2 Number of professional landlords =", Q2)
 ```
 
+Based on these definitions, we utilized Python to conduct systematic cleaning and mining of the London Airbnb dataset. The analysis process first aggregated the full listing data by Host ID (`host_id`), calculating the total number of listings and the specific count of "entire home" listings for each host. Subsequently, using boolean indexing combined with calendar availability data (`availability_365`), we filtered for samples that simultaneously met the "multiple listing holding" and "high-frequency rental (>90 days)" criteria.This algorithmic logic ensured that the identified subjects precisely corresponded to the "commercial operators" targeted by the opposition's proposal, effectively excluding ordinary citizens occasionally renting out their primary residences.
+
 ```{python}
 #| echo: True 
 ## 10 Calculate host's listing and proportion
@@ -989,6 +996,7 @@ Q32 = Q31 / total_listings
 if SHOW_RESULTS:
     print("Q3.2 Proportion of properties listed by professional landlords =", round(Q32,4))
 ```
+Through the algorithmic filtering described above, we identified 5,345 professional landlords currently operating in London. Although this figure may appear limited relative to the total base of hosts, it exhibits significant clustering characteristics.The distribution analysis reveals a distinct "long tail" effect, where a segment of top-tier operators manages large-scale portfolios. This finding validates the observations of [@deboosere2019airbnb], who note that the short-term rental market is undergoing a rapid process of "professionalization," wherein a minority of commercial entities capture excess returns through scaled management, thereby intensifying competition with the traditional housing market.
 
 ```{python}
 #| echo: True 
@@ -1021,6 +1029,8 @@ plt.ylabel("Number of hosts")
 plt.title("Distribution of multi-listing hosts")
 plt.legend()
 ```
+**Figure 1: Distribution of Multi-Listing Hosts.**  
+The histogram visualizes the distribution of hosts with multiple listings, distinguishing between professional and non-professional operators. It reveals a stark contrast in operational scale: while non-professional hosts are overwhelmingly concentrated at the lower threshold (typically owning just two properties), the professional segment exhibits a distinct "long tail." This demonstrates that professional landlords are characterized by the management of extensive property portfolios, extending well beyond the activity patterns of casual home-sharers.
 
 ```{python}
 #| echo: True 
@@ -1116,7 +1126,36 @@ ax.annotate(
 )
 plt.show()
 ```
+**Figure 2: Spatial Distribution of Professional Landlord Listings.**  
+This figure displays the spatial distribution of Airbnb listings managed by professional landlords across the Greater London area. The map reveals a stark "core–periphery" pattern, where the vast majority of commercial listings are densely clustered within Central London boroughs. Conversely, the outer boroughs show a significantly more sparse and scattered distribution of these professional listings.This geographic disparity highlights that high-intensity professional hosting is primarily a central-city phenomenon rather than a uniform issue across the capital.
 
+
+
+##Q3. How many properties would be affected by the opposition’s proposal?
+The actual penetration of the opposition's proposal is more starkly reflected in the property-level statistics. First, these 5,345 professional landlords collectively hold 37,609 properties. This implies that if the opposition's registration and tax hike plan were implemented, it would directly affect this magnitude of housing stock. These properties are predominantly high-frequency "entire home" rentals; as indicated by [@lee2016airbnb] and supported by [@gurran2017airbnb], the large-scale conversion of such units often corresponds directly to the loss of stock in the long-term rental market, acting as a structural factor in housing supply constraints.
+Second, in terms of market share, these 37,609 properties account for 38.91% of all active Airbnb listings in London. This proportion holds high policy significance: although professional landlords comprise only around five thousand individuals, they control nearly 40% of the market supply. This aligns with the "Rent Gap" theory proposed by [@wachsmuth2018rentgap], which suggests that capital acutely captures the excess profit of short-term rentals over long-term leases, driving the transfer of housing inventory toward high-intensity commercial use. The fact that nearly 40% of the market is controlled by this group strongly supports the opposition's assertion that Airbnb is "out of control" in the capital—indicating that the platform has, to a significant extent, shifted from a "sharing economy" to a largely unregulated distributed hotel network.
+
+In conclusion, while the opposition's proposal targets a minority of individuals (approximately 5,300), its policy impact would cover a core segment of the market (approximately 39% of listings). Should the Mayor choose to adopt this proposal, these data points support a narrative of "precision targeting": effectively curbing the erosion of the housing market by large-scale commercial operations while protecting the occasional sharing activities of the majority of ordinary citizens.
+
+
+
+
+##Q4. What are the likely pros and cons of the opposition’s proposal (for the Mayor, for residents, and for the city)?
+
+Accepting the opposition’s proposal allows the Mayor to reframe the Airbnb debate away from moral panic or platform-level blame, and toward a positive narrative centred on housing opportunity, fairness, and social mobility.
+The analysis in Q1 demonstrates that London’s short-term rental market is not simply large, but structurally misaligned with its regulatory intent. Widespread breaches of the 90-day rule and weak enforcement show that existing safeguards have failed to prevent the conversion of residential housing into de facto commercial accommodation. Q2 and Q3 further reveal that this is not driven by ordinary residents, but by a relatively small group of professional landlords who operate entire homes at scale and control a disproportionate share of supply.
+Against this background, accepting the proposal can be framed as an intervention to restore access to housing opportunity. By increasing the costs faced by large-scale commercial operators, the policy directly targets those most responsible for removing homes from the long-term rental market. This creates the conditions for housing to flow back toward residential use, benefiting long-term renters and stabilising neighbourhoods without undermining genuine home-sharing.
+
+From a social mobility perspective, the distinction is crucial. Casual hosting can provide supplementary income and resilience for households under financial pressure, supporting upward mobility. Unchecked commercialisation, by contrast, concentrates housing assets and income among a small group while reducing access for others. The proposal therefore supports mobility by protecting the former while constraining the latter.
+Accepting the proposal enables the Mayor to present regulation not as opposition to innovation, but as fair governance of housing as a shared urban resource—one that balances opportunity, affordability, and community stability across the city.
+
+##Q5. Can the story be reframed as a positive one about social mobility or housing opportunity?
+
+Yes—but only if the narrative clearly distinguishes between casual home-sharing and large-scale commercial short-term rental activity. The evidence presented in this briefing shows that the problems associated with Airbnb in London are not caused by ordinary residents occasionally renting out spare space, but by a relatively small group of professional operators who use housing as a commercial asset.
+From a social mobility perspective, genuine home-sharing can support households facing rising living costs by providing supplementary income. For homeowners and some tenants, short-term letting can help offset housing expenses, improve financial resilience, and widen access to opportunity. Preserving this form of participation aligns with the original promise of the sharing economy and supports upward mobility for ordinary residents.
+However, the analysis also demonstrates that large-scale commercial short-term rentals—concentrated among professional hosts controlling a significant share of listings—undermine housing opportunity for others. Entire homes operated at high intensity are effectively removed from the long-term rental market, reducing availability, increasing competition, and disproportionately harming long-term renters. This dynamic exacerbates inequality by transferring housing access from residents to tourists and investors.
+Reframing the story therefore requires shifting the focus away from Airbnb as a platform and towards the unequal use of housing assets. The policy debate can be presented not as opposition to innovation or sharing, but as a defence of housing as a place to live rather than a vehicle for unregulated commercial profit. By targeting professional operators while protecting casual hosts, regulation can be framed as enabling fair access to housing, strengthening communities, and supporting inclusive urban growth.
+In this way, the narrative moves from one of prohibition to one of balanced opportunity: safeguarding social mobility for residents while curbing forms of commercialisation that erode housing security and equity in the city.
 
 
 
