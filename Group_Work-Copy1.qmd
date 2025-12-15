@@ -811,6 +811,181 @@ if SHOW_LISA_MAP:
     plt.show()
 ```
 
+```{python}
+#| echo: True 
+## 18 Select professional landlords
+cols = [
+    "id", "host_id", "room_type",
+    "availability_365", "neighbourhood_cleansed",
+    "latitude", "longitude"
+]
+
+df = listings[cols].copy()    
+print("Columns loaded:", df.columns)
+```
+
+```{python}
+#| echo: True 
+## 19 calculate professional landlords
+host_stats = df.groupby("host_id").agg(
+    total_listings = ('id','count'),
+    entire_homes   = ('room_type', lambda x: (x=="Entire home/apt").sum()),
+    avail_over_90  = ('availability_365', lambda x: (x>90).sum())
+).reset_index()
+
+host_stats["is_PL"] = (
+    ((host_stats.total_listings >= 3) | (host_stats.entire_homes >= 2))
+    & (host_stats.avail_over_90 > 0)
+)
+
+final_hosts = host_stats[host_stats.is_PL].host_id.unique()
+
+Q2 = len(final_hosts)
+print("Q2 Number of professional landlords =", Q2)
+```
+
+```{python}
+#| echo: True 
+## 20 Calculate host's listing and proportion
+df["is_PL_listing"] = df["host_id"].isin(final_hosts)
+Q31 = df["is_PL_listing"].sum()
+print("Q3.1 Number of Properties Owned by Professional Landlords =", Q31)
+
+total_listings = len(df)
+Q32 = Q31 / total_listings
+print("Q3.2 Proportion of properties listed by professional landlords =", round(Q32,4))
+```
+
+```{python}
+#| echo: True 
+## 21 Map distribution of multi-listing hosts
+PL_hosts = host_stats[host_stats.is_PL]
+non_PL_hosts = host_stats[~host_stats.is_PL]
+
+PL_plot = PL_hosts[PL_hosts.total_listings > 1]
+non_PL_plot = non_PL_hosts[non_PL_hosts.total_listings > 1]
+
+plt.figure(figsize=(8,5))
+
+plt.hist(
+    PL_plot["total_listings"],
+    bins=range(2, 50),
+    alpha=0.7,
+    label="Professional landlords"
+)
+
+plt.hist(
+    non_PL_plot["total_listings"],
+    bins=range(2, 50),
+    alpha=0.7,
+    label="Non-professional landlords"
+)
+
+plt.xlim(2, 50)
+plt.xlabel("Number of listings per host (>1)")
+plt.ylabel("Number of hosts")
+plt.title("Distribution of multi-listing hosts")
+plt.legend()
+plt.show()
+```
+
+```{python}
+#| echo: True 
+## 22 Generate point data + spatial join
+if "is_PL" not in merged.columns:
+    merged = merged.merge(
+        host_stats[["host_id", "is_PL"]],
+        on="host_id",
+        how="left"
+    )
+    merged["is_PL"] = merged["is_PL"].fillna(False)
+
+pts = gpd.GeoDataFrame(
+    merged.copy(),
+    geometry=gpd.points_from_xy(merged["longitude"], merged["latitude"]),
+    crs="EPSG:4326"
+).to_crs(boros.crs)
+
+pts_boro = gpd.sjoin(
+    pts,
+    boros[["borough", "geometry"]],
+    how="left",
+    predicate="within"
+)
+
+pl_pts = pts_boro[pts_boro["is_PL"] == True].copy()
+```
+
+```{python}
+#| echo: True 
+## 23 #23 Plot professional landlord listings on the map
+
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+
+# Borough boundaries
+boros.plot(
+    ax=ax,
+    color="white",
+    edgecolor="black",
+    linewidth=0.5
+)
+
+# Professional landlord listings
+pl_pts.plot(
+    ax=ax,
+    color="red",
+    markersize=1,
+    alpha=0.4
+)
+
+ax.set_title("Spatial distribution of professional landlord listings in London")
+ax.axis("off")
+
+# ---- Scale bar ----
+xmin, ymin, xmax, ymax = boros.total_bounds
+scale_length = 5000  # 5 km
+
+x_start = xmin + 0.05 * (xmax - xmin)
+y_start = ymin + 0.05 * (ymax - ymin)
+
+ax.plot(
+    [x_start, x_start + scale_length],
+    [y_start, y_start],
+    color="black",
+    linewidth=3
+)
+
+ax.text(
+    x_start + scale_length / 2,
+    y_start + 0.01 * (ymax - ymin),
+    "5 km",
+    ha="center",
+    va="bottom",
+    fontsize=10
+)
+
+# ---- North arrow ----
+arrow_x = xmin + 0.90 * (xmax - xmin)
+arrow_y = ymin + 0.15 * (ymax - ymin)
+
+ax.annotate(
+    'N',
+    xy=(arrow_x, arrow_y + 3000),
+    xytext=(arrow_x, arrow_y),
+    arrowprops=dict(facecolor='black', width=4, headwidth=12),
+    ha='center',
+    va='center',
+    fontsize=12,
+    fontweight='bold'
+)
+
+plt.show()
+```
+
+
+
 
 ```{python}
 # This code is not shown because echo was
