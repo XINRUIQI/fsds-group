@@ -407,15 +407,15 @@ def plot_occupied_nights_hist(df: pd.DataFrame) -> None:
     plt.title("Figure-1 Distribution of Occupied Nights (Entire Homes)")
     plt.tight_layout()
 
-def plot_top_violation_areas(neigh_stats: pd.DataFrame, top_n: int = 20) -> None:
-    """Figure 2: Boroughs with the highest violation share."""
-    df = neigh_stats.sort_values("share_violations", ascending=False).head(top_n)
+def plot_violation_areas(neigh_stats: pd.DataFrame) -> None:
+    """Figure 2: Boroughs by 90-day violation share (all boroughs)."""
+    df = neigh_stats.sort_values("share_violations", ascending=False)
 
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(10, 6))  
     plt.barh(df["borough"], df["share_violations"])
     plt.gca().invert_yaxis()
     plt.xlabel("Share of entire homes violating 90-day rule")
-    plt.title(f"Figure-2 Top {top_n} Areas by Violation Share")
+    plt.title("Figure-2 Boroughs by 90-day Violation Share")
     plt.tight_layout()
 
 def plot_share_commercial_vs_violations(neigh_stats: pd.DataFrame) -> None:
@@ -470,23 +470,23 @@ Figure 1 – Occupied nights: Many entire homes exceed the 90-night legal limit,
 #| echo: True 
 ## 4.4 Neighbourhood (borough) table + Figure 2 (toggleable)
 RUN_NEIGH = True           
-SHOW_NEIGH_TABLE = False   
+SHOW_NEIGH_TABLE = False 
 SHOW_NEIGH_PLOT  = True   
-
-TOP_N = 20
 
 if RUN_NEIGH:
     neigh = violation_by_borough(merged)
-    
     if SHOW_NEIGH_TABLE:
-        print("\n=== Neighbourhood (borough) violation table (top 10 by share) ===")
-        print(neigh.sort_values("share_violations", ascending=False).head(10))
-
+        print("\n=== Neighbourhood (borough) violation table (all boroughs, sorted) ===")
+        print(
+            neigh
+            .sort_values("share_violations", ascending=False)
+            .round(3)
+        )
     # Figure 2
     if SHOW_NEIGH_PLOT:
-        plot_top_violation_areas(neigh, top_n=TOP_N)
+        plot_violation_areas(neigh)
 ```
-Figure 2 – Borough violation rates: Multiple boroughs record 70–85% non-compliance, indicating structural enforcement gaps.
+Figure 2 – Borough violation rates: Most boroughs across Greater London record 70–90% non-compliance, indicating structural enforcement gaps.
 
 
 ```{python}
