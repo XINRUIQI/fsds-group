@@ -1,6 +1,6 @@
 ---
 date: last-modified
-bibliography: bio.bib
+bibliography: references.bib
 csl: harvard-cite-them-right.csl
 title: FIVE GUYS' Group Project
 execute:
