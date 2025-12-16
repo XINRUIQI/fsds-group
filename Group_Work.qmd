@@ -5,7 +5,7 @@ csl: harvard-cite-them-right.csl
 title: FIVE GUYS' Group Project
 execute:
   echo: false
-  freeze: false
+  freeze: true
 format:
   html:
     code-copy: true
@@ -56,20 +56,24 @@ We, FIVE GUYS, pledge our honour that the work presented in this assessment is o
 
 Date:21/11/2025
 
-Student Numbers: 
+Student Numbers: 22199699; 25135657; 25148717; 25049635; 25111746.
 
 ## Priorities for Feedback
 
-Are there any areas on which you would appreciate more detailed feedback if we're able to offer it?
+We would appreciate feedback on the methodological choices made in defining professional landlords and on the effectiveness of our data processing and spatial analysis workflow.
 
 {{< pagebreak >}}
-## Q1. Is Airbnb “out of control” in London?
 
-London’s 90-day rule is the key legal benchmark for assessing whether Airbnb is “out of control[@Rozena07022023; @doi:10.1177/0042098020970865].” Under the Deregulation Act 2015, a dwelling may be short-let for up to 90 nights per calendar year without planning permission; exceeding this threshold constitutes a material change of use and is therefore unlawful[@doi:10.1177/0042098020970865]. The rule aims to prevent the commercialisation of entire homes and protect long-term housing supply. Using the calendar and listings datasets in Jupyter, we calculated occupied_nights for entire homes to assess compliance. 
-Three patterns indicate regulatory failure.
+# Q1. Is Airbnb “out of control” in London?
+
+### Policy
+
+London’s 90-day rule is the key legal benchmark for assessing whether Airbnb is “out of control [@Rozena07022023; @doi:10.1177/0042098020970865].” Under the Deregulation Act 2015, a dwelling may be short-let for up to 90 nights per calendar year without planning permission; exceeding this threshold constitutes a material change of use and is therefore unlawful[@doi:10.1177/0042098020970865]. Short-term rentals (STRs) refer to residential properties offered for temporary accommodation, typically for periods of less than one month, through platforms such as Airbnb. The rule aims to prevent the commercialisation of entire homes and protect long-term housing supply. Using the calendar and listings datasets in Jupyter, we calculated occupied_nights for entire homes to assess compliance. For the Mayor, these patterns matter because they indicate that existing safeguards are failing to distinguish between casual home-sharing and large-scale commercial use—exposing the administration to claims of weak oversight.
+
+Three patterns suggest significant weaknesses in the current regulatory framework.
 
 ```{python}
-#| echo: True 
+#| echo: false
 #1 Imports & Paths & Constants
 import numpy as np
 import pandas as pd
@@ -105,8 +109,6 @@ ORCA_PATH = "~jreades/data"
 CALENDAR_FILE = f"{CALENDAR_YMD}-{CITY}-calendar.csv.gz"
 LISTINGS_FILE = f"{LISTINGS_YMD}-{CITY}-listings.csv.gz"
 
-STOCK_CSV_PATH = TABLE_DIR / "social-landlord-housing-stock-borough.csv"
-
 ## 1.3 Policy thresholds
 VIOLATION_THRESHOLD = 90          # London 90-day rule
 COMMERCIAL_AVAIL_THRESHOLD = 60   # proxy for commercial STR
@@ -126,7 +128,7 @@ def vprint(verbose: bool, *args, **kwargs) -> None:
 ```
 
 ```{python}
-#| echo: True 
+#| echo: false
 #2 Data Download & Caching 
 ## 2.1 Cache
 def check_cache(f):
@@ -165,14 +167,19 @@ borough_url = (
     "master/data/src/Boroughs.gpkg"
 )
 borough_path = cache_data(borough_url, GEO_DIR)
+
+STOCK_URL = (
+    "https://raw.githubusercontent.com/XINRUIQI/fsds-group/"
+    "main/data/table/social-landlord-housing-stock-borough.csv"
+)
+stock_path = cache_data(STOCK_URL, TABLE_DIR)
 ```
 
 
 ```{python}
-#| echo: True 
-#| output: asis
+#| echo: false
 #3 Core Wrangling: read listings & stream calendar & merge & flags
-SHOW_TABLES = True
+SHOW_TABLES = False
 CHUNK_SIZE = 200_000
 
 def load_listings(path: Path) -> pd.DataFrame:
@@ -320,7 +327,7 @@ if SHOW_TABLES:
 ```
 
 ```{python}
-#| echo: True 
+#| echo: false
 #4 Q1.1 Policy (90-day rule)
 ## 4.1 Function Definitions
 def _entire_home_listings(df: pd.DataFrame) -> pd.DataFrame:
@@ -447,7 +454,7 @@ def plot_share_commercial_vs_violations(neigh_stats: pd.DataFrame) -> None:
 
 
 ```{python}
-#| echo: True 
+#| echo: false
 ## 4.3 Citywide 90-day rule stats + Figure 1 (toggleable)
 RUN_CITYWIDE = True
 SHOW_CITY_STATS = False
@@ -464,10 +471,19 @@ if RUN_CITYWIDE:
     if SHOW_CITY_PLOT:
         plot_occupied_nights_hist(merged)
 ```
-Figure 1 – Occupied nights: Many entire homes exceed the 90-night legal limit, showing widespread violation.
+Figure 1 – Occupied nights: Many entire homes exceed the 90-night legal limit, showing widespread violation.(Occupied nights are inferred from availability data and may therefore represent an upper bound of potential non-compliance.)
+```{python}
+#| output: asis
+entire = _entire_home_listings(merged)
+print(
+    f"Across all entire-home listings, approximately {entire['violates_90day'].mean():.0%} exceed the 90-night legal threshold."
+)
+```
+
+
 
 ```{python}
-#| echo: True 
+#| echo: false
 ## 4.4 Neighbourhood (borough) table + Figure 2 (toggleable)
 RUN_NEIGH = True           
 SHOW_NEIGH_TABLE = False 
@@ -486,11 +502,17 @@ if RUN_NEIGH:
     if SHOW_NEIGH_PLOT:
         plot_violation_areas(neigh)
 ```
-Figure 2 – Borough violation rates: Most boroughs across Greater London record 70–90% non-compliance, indicating structural enforcement gaps.
+Figure 2 – Borough violation rates: Most boroughs across Greater London record 70–90% non-compliance, indicating persistent enforcement challenges.
+```{python}
+#| output: asis
+print(
+    f"{(neigh['share_violations'] >= 0.7).sum()} out of {neigh.shape[0]} boroughs record violation rates above 70%."
+)
+```
 
 
 ```{python}
-#| echo: True 
+#| echo: false
 # 4.5 Policy Figure 3: Commercial STR vs 90-day violations (toggleable)
 RUN_FIG3 = True
 SHOW_FIG3_STATS = False
@@ -506,18 +528,20 @@ if RUN_FIG3:
     if SHOW_FIG3_PLOT:
         plot_share_commercial_vs_violations(neigh_stats)
 ```
-Figure 3 – Commercial STR correlation: Areas with more commercial STRs show higher violation rates, suggesting professional landlords drive much of the unlawful activity.
+Figure 3 – Commercial STR correlation:Boroughs with high levels of non-compliance also exhibit substantial variation in the share of commercial STRs, indicating that widespread 90-day violations are not limited to areas dominated by clearly commercial operators. 
 
 Together, these findings show that the 90-day rule is routinely breached in practice, and that London’s Airbnb market has expanded beyond effective regulatory control.
 
+### Commercialisation
 
-A second way to assess whether Airbnb is “out of control” is to examine the commercialisation of London’s STR market[@ferreri2018platform; @Rozena07022023]. Prior research shows that when STR activity shifts from occasional home-sharing to investment-driven, multi-property operations, it withdraws units from the long-term rental market and contributes to rent inflation, displacement and neighbourhood change[@wachsmuth2018rentgap; @bivens2019airbnb]. Thus, commercialisation is not only an economic shift but a mechanism that increases housing pressure.
+In this study, “commercial STRs” refer to short-term rental activity characterised by sustained, high-intensity use and investment-oriented operation, rather than occasional or supplementary home-sharing. A second way to assess whether Airbnb is “out of control” is to examine the commercialisation of London’s STR market[@ferreri2018platform; @Rozena07022023]. Prior research links investment-driven, multi-property STR operation to housing withdrawal and increased local housing pressure[@wachsmuth2018rentgap; @bivens2019airbnb]. 
 
 Using the listings and calendar datasets in Jupyter, we detect commercialisation through host scale and availability intensity.
 
+Listings were classified as "commercial" or "hotel-like"based on sustained year-round availability patterns indicative of continuous short-term letting rather than occasional use.“Hotel-like” STRs are understood here as listings operated in a manner analogous to hotels, with continuous availability and frequent guest turnover.
 
 ```{python}
-#| echo: True 
+#| echo: false
 #5 Q1.2 Commercialisation
 ## 5.1 Function Definitions
 def _unique_listings(df: pd.DataFrame) -> pd.DataFrame:
@@ -593,7 +617,7 @@ def plot_commercial_composition(stats: dict) -> None:
 
 
 ```{python}
-#| echo: True 
+#| echo: false
 ## 5.3 Compute Stats Only
 RUN_COMMERCIAL = True
 SHOW_COMM_STATS = False
@@ -609,7 +633,7 @@ if RUN_COMMERCIAL:
 ```
 
 ```{python}
-#| echo: True 
+#| echo: false
 ## 5.4 Figure 4: Host distribution
 SHOW_HOST_PLOT = True   
 
@@ -620,23 +644,31 @@ Figure 4 – Host size distribution: Most hosts manage one listing, but thousand
 
 
 ```{python}
-#| echo: True 
 ## 5.5 Figure 5: Commercial composition
 SHOW_COMM_COMP_PLOT = True   
 
 if RUN_COMMERCIAL and SHOW_COMM_COMP_PLOT:
     plot_commercial_composition(comm_stats)
 ```
-Figure 5 – Availability categories: Nearly half of entire homes show commercial or hotel-like availability, implying year-round operation and reinforcing the withdrawal of housing from long-term use.
+Figure 5 – Availability categories: Nearly half of entire homes show commercial or hotel-like availability, implying widespread year-round operation, consistent with patterns of housing withdrawal documented in prior studies.
+```{python}
+#| output: asis
+print(
+    f"In total, {((merged['commercial_STR'] | merged['hotel_like_STR']) & merged['is_entire_home']).mean():.0%} "
+    "of entire-home listings exhibit commercial or hotel-like availability patterns."
+)
+```
 
 In relation to “out of control,” these patterns show an STR sector functioning as de facto commercial accommodation, expanding beyond the level policymakers intended to regulate.
 
+
+### Spatial
 
 A third indicator of whether Airbnb is “out of control” is the spatial concentration of STR activity, as dense or clustered STR markets are strongly associated with heightened housing pressure [@doi:10.1177/0042098020970865; @Gyódi01092024]. Using borough-level listings, housing stock estimates, and spatial statistics computed in Jupyter, we identify three patterns.
 
 
 ```{python}
-#| echo: True 
+#| echo: false
 #6 Spatial Join & Build Borough-level Tables 
 ## 6.1 Read borough polygons
 boros = gpd.read_file(borough_path)
@@ -657,7 +689,7 @@ pts_boro = (
 )
 
 ## 6.3 Spatial Map 1: STR density per 1000 dwellings 
-stock = pd.read_csv(STOCK_CSV_PATH)
+stock = pd.read_csv(stock_path)
 dwell_col = "Number of self-contained units or bedspaces-2024"
 
 """housing stock (denominator)"""
@@ -737,7 +769,7 @@ def plot_borough_choropleth(
 ```
 
 ```{python}
-#| echo: True 
+#| echo: false
 ## 6.6 Spatial Map 1: STR density per 1,000 dwellings
 SHOW_MAP_STR_DENSITY = True
 
@@ -754,7 +786,7 @@ Map 1– STR density: Central boroughs exhibit densities far above the rest of L
 
 
 ```{python}
-#| echo: True 
+#| echo: false
 ## 6.7 Spatial Map 2: Commercial STR share by borough
 SHOW_MAP_COMMERCIAL = True
 
@@ -772,7 +804,7 @@ Map 2 – Commercial STR share: These same boroughs also display high proportion
 
 
 ```{python}
-#| echo: True 
+#| echo: false
 #7 Spatial Autocorrelation (Global Moran + Moran scatter + Local Moran LISA map)
 ## 7.1 Defination & Compute
 RUN_SPATIAL_STATS = True
@@ -845,7 +877,6 @@ w = Queen.from_dataframe(gdf, use_index=False)
 w.transform = "R"
 
 # Global Moran
-
 if RUN_SPATIAL_STATS:
     I_obs, p_two, I_perm = permute_global_I(z, w, perms=999, seed=42)
 
@@ -875,7 +906,7 @@ if RUN_SPATIAL_STATS:
 ```
 
 ```{python}
-#| echo: True 
+#| echo: false
 ## 7.2 Global Moran's I: Moran scatterplot
 SHOW_MORAN_SCATTER = False
 
@@ -897,7 +928,7 @@ if SHOW_MORAN_SCATTER:
 ```
 
 ```{python}
-#| echo: True 
+#| echo: false
 ## 7.3 Local Moran's I: LISA Cluster Map
 SHOW_LISA_MAP = True
 
@@ -932,17 +963,18 @@ Map 3– LISA clustering: Local Moran’s I reveals a significant High–High cl
 
 In relation to “out of control,” the spatial evidence suggests that STR activity concentrates in sensitive housing markets, amplifying displacement risks and exceeding the city’s capacity to manage its geographic impacts.
 
+### In Conclusion
 
-Across regulatory, commercial, and spatial dimensions, London’s STR activity consistently exceeds intended limits, with widespread rule violations, professionalised hosting, and concentrated hotspots—together indicating an Airbnb market that is effectively out of control.
+Across regulatory, commercial, and spatial dimensions, London’s STR activity consistently exceeds intended limits, with widespread rule violations, professionalised hosting, and concentrated hotspots—together suggesting that Airbnb activity in London exceeds the level of control originally intended by policymakers.Whether Airbnb is considered “out of control” ultimately depends on how strictly one interprets the 90-day rule and what level of commercial activity is deemed acceptable.
 
+{{< pagebreak >}}
 
-## Q2. How many professional landlords are there?
-## Defining Professional Landlords
+# Q2. How many professional landlords are there?
 
-To accurately assess the potential impact of the opposition's proposal, this analysis first established a rigorous quantitative standard to distinguish between "sharing economy participants" and "commercial operators." Drawing on research by [@wachsmuth2018rentgap] regarding the structure of short-term rental markets, relying solely on the number of listings is insufficient to fully define commercial attributes; therefore, listing type and activity levels must be integrated into the assessment.Consequently, we formulated the following logic to define a "Professional Landlord" within the data processing workflow: the host must meet a dual threshold of "Operational Scale" and "Activity Level." In terms of scale, the definition includes hosts owning 3 or more listings of any type, or 2 or more "entire home" listings. This distinction is based on the premise that hosts with multiple entire homes cannot simultaneously inhabit these properties, rendering their activity "necessarily commercial" rather than residential sharing.Regarding activity level, we excluded inactive accounts by including only those with an annual availability exceeding 90 days. As noted by [@gurran2017airbnb], high-frequency short-term letting (e.g., exceeding 90 days) is a critical indicator for determining whether housing has been removed from the permanent rental market, thereby causing neighborhood disruption.
+To accurately assess the potential impact of the opposition's proposal, this analysis first established a rigorous quantitative standard to distinguish between "sharing economy participants" and "commercial operators." Drawing on research by [@wachsmuth2018rentgap] regarding the structure of short-term rental markets, relying solely on the number of listings is insufficient to fully define commercial attributes; therefore, listing type and activity levels must be integrated into the assessment. Consequently, we formulated the following logic to define a "Professional Landlord" within the data processing workflow: the host must meet a dual threshold of "Operational Scale" and "Activity Level." In terms of scale, the definition includes hosts owning 3 or more listings of any type, or 2 or more "entire home" listings. This distinction is based on the premise that hosts with multiple entire homes cannot simultaneously inhabit these properties, rendering their activity "necessarily commercial" rather than residential sharing.Regarding activity level, we excluded inactive accounts by including only those with an annual availability exceeding 90 days. Availability over 90 days is used here as a conservative proxy for sustained short-term letting activity, recognising that it does not directly measure realised bookings. As noted by [@gurran2017airbnb], high-frequency short-term letting (e.g., exceeding 90 days) is a critical indicator for determining whether housing has been removed from the permanent rental market, thereby causing neighborhood disruption.
 
 ```{python}
-#| echo: True 
+#| echo: false
 ## 8 Select professional landlords
 SHOW_RESULTS = False
 listings = pd.read_csv(listings_path)
@@ -961,8 +993,9 @@ if SHOW_RESULTS:
 ```
 
 ```{python}
-#| echo: True 
+#| echo: False
 ## 9 calculate professional landlords
+SHOW_RESULTS = False
 host_stats = df.groupby("host_id").agg(
     total_listings = ('id','count'),
     entire_homes   = ('room_type', lambda x: (x=="Entire home/apt").sum()),
@@ -981,11 +1014,12 @@ if SHOW_RESULTS:
     print("Q2 Number of professional landlords =", Q2)
 ```
 
-Based on these definitions, we utilized Python to conduct systematic cleaning and mining of the London Airbnb dataset. The analysis process first aggregated the full listing data by Host ID (`host_id`), calculating the total number of listings and the specific count of "entire home" listings for each host. Subsequently, using boolean indexing combined with calendar availability data (`availability_365`), we filtered for samples that simultaneously met the "multiple listing holding" and "high-frequency rental (>90 days)" criteria.This algorithmic logic ensured that the identified subjects precisely corresponded to the "commercial operators" targeted by the opposition's proposal, effectively excluding ordinary citizens occasionally renting out their primary residences.
+Based on these definitions, we utilized Python to conduct systematic cleaning and mining of the London Airbnb dataset. The analysis process first aggregated the full listing data by Host ID (`host_id`), calculating the total number of listings and the specific count of "entire home" listings for each host. Subsequently, using boolean indexing combined with calendar availability data (`availability_365`), we filtered for samples that simultaneously met the "multiple listing holding" and "high-frequency rental (>90 days)" criteria.This algorithmic logic ensured that the identified subjects precisely corresponded to the "commercial operators" targeted by the opposition's proposal, effectively excluding ordinary citizens occasionally renting out their primary residences.This definition reflects a policy-oriented interpretation of “professional landlords”, prioritising scale and sustained market presence over formal ownership structures.
 
 ```{python}
-#| echo: True 
+#| echo: false
 ## 10 Calculate host's listing and proportion
+SHOW_RESULTS = False
 df["is_PL_listing"] = df["host_id"].isin(final_hosts)
 Q31 = df["is_PL_listing"].sum()
 if SHOW_RESULTS:
@@ -999,7 +1033,7 @@ if SHOW_RESULTS:
 Through the algorithmic filtering described above, we identified 5,345 professional landlords currently operating in London. Although this figure may appear limited relative to the total base of hosts, it exhibits significant clustering characteristics.The distribution analysis reveals a distinct "long tail" effect, where a segment of top-tier operators manages large-scale portfolios. This finding validates the observations of [@deboosere2019airbnb], who note that the short-term rental market is undergoing a rapid process of "professionalization," wherein a minority of commercial entities capture excess returns through scaled management, thereby intensifying competition with the traditional housing market.
 
 ```{python}
-#| echo: True 
+#| echo: false
 ## 11 Map distribution of multi-listing hosts
 PL_hosts = host_stats[host_stats.is_PL]
 non_PL_hosts = host_stats[~host_stats.is_PL]
@@ -1011,29 +1045,28 @@ plt.figure(figsize=(8,5))
 
 plt.hist(
     PL_plot["total_listings"],
-    bins=range(2, 50),
+    bins=range(2, 40),
     alpha=0.7,
     label="Professional landlords"
 )
 
 plt.hist(
     non_PL_plot["total_listings"],
-    bins=range(2, 50),
+    bins=range(2, 40),
     alpha=0.7,
     label="Non-professional landlords"
 )
 
-plt.xlim(2, 50)
+plt.xlim(2, 40)
 plt.xlabel("Number of listings per host (>1)")
 plt.ylabel("Number of hosts")
-plt.title("Distribution of multi-listing hosts")
+plt.title("Figure-6 Distribution of multi-listing hosts")
 plt.legend()
 ```
-**Figure 1: Distribution of Multi-Listing Hosts.**  
-The histogram visualizes the distribution of hosts with multiple listings, distinguishing between professional and non-professional operators. It reveals a stark contrast in operational scale: while non-professional hosts are overwhelmingly concentrated at the lower threshold (typically owning just two properties), the professional segment exhibits a distinct "long tail." This demonstrates that professional landlords are characterized by the management of extensive property portfolios, extending well beyond the activity patterns of casual home-sharers.
+Figure 6-Distribution of Multi-Listing Hosts: The histogram visualizes the distribution of hosts with multiple listings, distinguishing between professional and non-professional operators. It reveals a stark contrast in operational scale: while non-professional hosts are overwhelmingly concentrated at the lower threshold (typically owning just two properties), the professional segment exhibits a distinct "long tail." This demonstrates that professional landlords are characterized by the management of extensive property portfolios, extending well beyond the activity patterns of casual home-sharers.
 
 ```{python}
-#| echo: True 
+#| echo: false
 ## 12 Plot professional landlord listings on the map
 # Generate point data + spatial join
 #| warning: false
@@ -1084,7 +1117,7 @@ pl_pts.plot(
     alpha=0.4
 )
 
-ax.set_title("Spatial distribution of professional landlord listings in London")
+ax.set_title("Map-4 Spatial distribution of professional landlord listings in London")
 ax.axis("off")
 
 # ---- Scale bar ----
@@ -1126,74 +1159,56 @@ ax.annotate(
 )
 plt.show()
 ```
-**Figure 2: Spatial Distribution of Professional Landlord Listings.**  
-This figure displays the spatial distribution of Airbnb listings managed by professional landlords across the Greater London area. The map reveals a stark "core–periphery" pattern, where the vast majority of commercial listings are densely clustered within Central London boroughs. Conversely, the outer boroughs show a significantly more sparse and scattered distribution of these professional listings.This geographic disparity highlights that high-intensity professional hosting is primarily a central-city phenomenon rather than a uniform issue across the capital.
+Map4-Spatial Distribution of Professional Landlord Listings: This figure displays the spatial distribution of Airbnb listings managed by professional landlords across the Greater London area. The map reveals a stark "core–periphery" pattern, where the vast majority of commercial listings are densely clustered within Central London boroughs. Conversely, the outer boroughs show a significantly more sparse and scattered distribution of these professional listings.This geographic disparity highlights that high-intensity professional hosting is primarily a central-city phenomenon rather than a uniform issue across the capital.
 
 
+{{< pagebreak >}}
 
-##Q3. How many properties would be affected by the opposition’s proposal?
-The actual penetration of the opposition's proposal is more starkly reflected in the property-level statistics. First, these 5,345 professional landlords collectively hold 37,609 properties. This implies that if the opposition's registration and tax hike plan were implemented, it would directly affect this magnitude of housing stock. These properties are predominantly high-frequency "entire home" rentals; as indicated by [@lee2016airbnb] and supported by [@gurran2017airbnb], the large-scale conversion of such units often corresponds directly to the loss of stock in the long-term rental market, acting as a structural factor in housing supply constraints.
-Second, in terms of market share, these 37,609 properties account for 38.91% of all active Airbnb listings in London. This proportion holds high policy significance: although professional landlords comprise only around five thousand individuals, they control nearly 40% of the market supply. This aligns with the "Rent Gap" theory proposed by [@wachsmuth2018rentgap], which suggests that capital acutely captures the excess profit of short-term rentals over long-term leases, driving the transfer of housing inventory toward high-intensity commercial use. The fact that nearly 40% of the market is controlled by this group strongly supports the opposition's assertion that Airbnb is "out of control" in the capital—indicating that the platform has, to a significant extent, shifted from a "sharing economy" to a largely unregulated distributed hotel network.
+# Q3. How many properties would be affected by the opposition’s proposal?
+
+The actual penetration of the opposition's proposal is more starkly reflected in the property-level statistics. 
+
+First, these 5,345 professional landlords collectively hold 37,609 properties. (‘properties’ refer to active Airbnb listings, which are treated as a proxy for individual housing units.)This implies that if the opposition's registration and tax hike plan were implemented, it would directly affect this magnitude of housing stock. These properties are predominantly high-frequency "entire home" rentals; as indicated by [@lee2016airbnb] and supported by [@gurran2017airbnb], the large-scale conversion of such units often corresponds directly to the loss of stock in the long-term rental market, acting as a structural factor in housing supply constraints.
+
+Second, in terms of market share, these 37,609 properties account for 38.91% of all active Airbnb listings in London. This proportion holds high policy significance: although professional landlords comprise only around five thousand individuals, they control nearly 40% of the market supply. This aligns with the "Rent Gap" theory proposed by [@wachsmuth2018rentgap], which suggests that capital acutely captures the excess profit of short-term rentals over long-term leases, driving the transfer of housing inventory toward high-intensity commercial use. The fact that nearly 40% of the market is controlled by this group provides a strong evidential basis for claims that Airbnb activity in London exceeds its original regulatory intent.
 
 In conclusion, while the opposition's proposal targets a minority of individuals (approximately 5,300), its policy impact would cover a core segment of the market (approximately 39% of listings). Should the Mayor choose to adopt this proposal, these data points support a narrative of "precision targeting": effectively curbing the erosion of the housing market by large-scale commercial operations while protecting the occasional sharing activities of the majority of ordinary citizens.
 
 
 
+{{< pagebreak >}}
 
-##Q4. What are the likely pros and cons of the opposition’s proposal (for the Mayor, for residents, and for the city)?
+# Q4. What are the likely pros and cons of the opposition’s proposal (for the Mayor, for residents, and for the city)?
 
-Accepting the opposition’s proposal allows the Mayor to reframe the Airbnb debate away from moral panic or platform-level blame, and toward a positive narrative centred on housing opportunity, fairness, and social mobility.
-The analysis in Q1 demonstrates that London’s short-term rental market is not simply large, but structurally misaligned with its regulatory intent. Widespread breaches of the 90-day rule and weak enforcement show that existing safeguards have failed to prevent the conversion of residential housing into de facto commercial accommodation. Q2 and Q3 further reveal that this is not driven by ordinary residents, but by a relatively small group of professional landlords who operate entire homes at scale and control a disproportionate share of supply.
-Against this background, accepting the proposal can be framed as an intervention to restore access to housing opportunity. By increasing the costs faced by large-scale commercial operators, the policy directly targets those most responsible for removing homes from the long-term rental market. This creates the conditions for housing to flow back toward residential use, benefiting long-term renters and stabilising neighbourhoods without undermining genuine home-sharing.
+The opposition’s proposal to require registration and impose higher council tax on professional landlords would have uneven impacts across stakeholders. Drawing on the preceding analysis, its effects can be assessed from the perspectives of the Mayor, residents, and the city as a whole.
 
-From a social mobility perspective, the distinction is crucial. Casual hosting can provide supplementary income and resilience for households under financial pressure, supporting upward mobility. Unchecked commercialisation, by contrast, concentrates housing assets and income among a small group while reducing access for others. The proposal therefore supports mobility by protecting the former while constraining the latter.
-Accepting the proposal enables the Mayor to present regulation not as opposition to innovation, but as fair governance of housing as a shared urban resource—one that balances opportunity, affordability, and community stability across the city.
+### The Mayor’s perspective
 
-##Q5. Can the story be reframed as a positive one about social mobility or housing opportunity?
+From the Mayor’s standpoint, the proposal offers a politically and administratively targeted intervention. Evidence from Q1 and Q2 shows that a relatively small group of professional hosts—around 5,300 individuals—controls nearly 40% of Airbnb listings, many of which operate at commercial intensity and frequently breach the 90-day rule. Targeting this group allows the Mayor to demonstrate decisive action on housing without penalising the majority of casual hosts. Increased registration and taxation would also improve transparency and enforcement capacity, addressing the regulatory failures identified in Part 1.
 
-Yes—but only if the narrative clearly distinguishes between casual home-sharing and large-scale commercial short-term rental activity. The evidence presented in this briefing shows that the problems associated with Airbnb in London are not caused by ordinary residents occasionally renting out spare space, but by a relatively small group of professional operators who use housing as a commercial asset.
-From a social mobility perspective, genuine home-sharing can support households facing rising living costs by providing supplementary income. For homeowners and some tenants, short-term letting can help offset housing expenses, improve financial resilience, and widen access to opportunity. Preserving this form of participation aligns with the original promise of the sharing economy and supports upward mobility for ordinary residents.
-However, the analysis also demonstrates that large-scale commercial short-term rentals—concentrated among professional hosts controlling a significant share of listings—undermine housing opportunity for others. Entire homes operated at high intensity are effectively removed from the long-term rental market, reducing availability, increasing competition, and disproportionately harming long-term renters. This dynamic exacerbates inequality by transferring housing access from residents to tourists and investors.
-Reframing the story therefore requires shifting the focus away from Airbnb as a platform and towards the unequal use of housing assets. The policy debate can be presented not as opposition to innovation or sharing, but as a defence of housing as a place to live rather than a vehicle for unregulated commercial profit. By targeting professional operators while protecting casual hosts, regulation can be framed as enabling fair access to housing, strengthening communities, and supporting inclusive urban growth.
-In this way, the narrative moves from one of prohibition to one of balanced opportunity: safeguarding social mobility for residents while curbing forms of commercialisation that erode housing security and equity in the city.
+However, the policy carries risks. It may provoke resistance from property owners and the short-term rental industry, and enforcement costs could be politically sensitive if revenues do not clearly offset them.
 
+### Residents’ perspective
 
+For residents, particularly long-term renters, the proposal has clear potential benefits. Q1 and Q3 indicate that commercial short-term rentals disproportionately involve entire homes with high availability and occupancy, effectively removing housing from the long-term rental market. By discouraging large-scale commercial operation, the proposal could help return some housing stock to residential use, easing pressure on rents and neighbourhood stability.
+Conversely, residents who rely on Airbnb income as supplementary earnings may perceive the policy as unfair if implementation is poorly differentiated, highlighting the importance of accurately distinguishing professional operators from casual sharers.
+
+### The city-wide perspective
+
+At the city scale, the proposal aligns with broader housing and planning objectives. The strong concentration of market share and revenue among professional hosts, combined with widespread non-compliance with existing regulations, suggests that unchecked commercialisation risks undermining housing supply and urban governance. Registration and higher taxation could internalise some of these externalities while generating public revenue.
+
+Nonetheless, there is a potential downside if overly restrictive measures reduce tourism capacity or push activity into less transparent, informal markets.
+
+Overall, the proposal’s main strength lies in its ability to precisely target a highly commercialised sub-market, balancing housing protection with continued support for genuine home-sharing.
 
 {{< pagebreak >}}
 
+# Q5. Can the story be reframed as a positive one about social mobility or housing opportunity?
 
-An inline citation example: As discussed on @insideairbnb, there are many...
+Accepting the opposition’s proposal allows the Mayor to reframe the Airbnb debate away from moral panic or platform-level blame, and toward a positive narrative centred on housing opportunity, fairness, and social mobility. The analysis in Q1 demonstrates that London’s short-term rental market is not simply large, but structurally misaligned with its regulatory intent. Widespread breaches of the 90-day rule and weak enforcement show that existing safeguards have failed to prevent the conversion of residential housing into de facto commercial accommodation. Q2 and Q3 further reveal that this is not driven by ordinary residents, but by a relatively small group of professional landlords who operate entire homes at scale and control a disproportionate share of supply. Against this background, accepting the proposal can be framed as an intervention to restore access to housing opportunity. By increasing the costs faced by large-scale commercial operators, the policy directly targets those most responsible for removing homes from the long-term rental market. This creates the conditions for housing to flow back toward residential use, benefiting long-term renters and stabilising neighbourhoods without undermining genuine home-sharing.
 
-A parenthetical citation example: There are many ways to research Airbnb [see, for example, @insideairbnb]... 
-
-```{python}
-#| output: asis
-# This is one way to write dynamic text. 'As is' means
-# it will interpret the result as regular Quarto markdown 
-# so the below `print` statement becomes plain text with
-# the size of the dataframe interpolated into the string.
-# When Quarto is done running the Python code what's left
-# is plain-text and that is then treated as a paragraph
-# like it would be if you'd written it in Quarto.
-print(f"One of way to embed output in the text looks like this: after cleaning, we were left with {df.shape[0]:,} rows of data.")
-```
-
-```{python}
-# The other way is to ensure that your variables are *simple* 
-# data types that Quarto can understand. So notice below that
-# we just have a single, inline `{python} with the value of
-# the row directly inserted into the sentence. his should also work, but is sometimes less predictably
-# reliable.
-row_count = f"{df.shape[0]:,}"
-```
-The other way is to interpolate it directly into the sentence like this (`{python} row_count `); however, I've found it less reliable and it really requires you to be careful about data types. So `{python} print(f"{df.shape[0]:,}") ` probably won't work and you'll just see some Python code instead.
-
-And here's a nice little chart straight into the document!
-
+From a social mobility perspective, the distinction matters. Casual hosting can provide supplementary income and resilience for households under financial pressure, supporting upward mobility. Unchecked commercialisation, by contrast, concentrates housing assets and income among a small group while reducing access for others. The proposal therefore supports mobility by protecting the former while constraining the latter. Accepting the proposal enables the Mayor to present regulation not as opposition to innovation, but as fair governance of housing as a shared urban resource—one that balances opportunity, affordability, and community stability across the city.
 
 {{< pagebreak >}}
-
-# Briefing
-
 
 ## References
